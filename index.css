@@ -1,0 +1,17 @@
+/* Global styles and compatibility fixes */
+:root,
+:host,
+html {
+  /* Keep vendor prefix for older WebKit while adding the standard property
+     to satisfy modern browsers (prevents the DevTools compatibility warning). */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
