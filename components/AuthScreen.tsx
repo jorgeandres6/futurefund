@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import SpinnerIcon from './icons/SpinnerIcon';
+import logo from '../logoff.png';
 
 interface AuthScreenProps {
   onLogin: (user: User, isSignup?: boolean) => void;
@@ -100,9 +101,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
              {/* Logo Section */}
              <div className="mb-4">
                  <img 
-                    src="/logoff.png" 
-                    alt="FutureFund Logo" 
-                    className="w-24 h-24 object-contain mb-4"
+                    src={logo} 
                     onError={(e) => {
                         e.currentTarget.style.display = 'none';
                     }}

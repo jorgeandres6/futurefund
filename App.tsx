@@ -14,6 +14,7 @@ import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
 import OnboardingForm from './components/OnboardingForm';
 import SpinnerIcon from './components/icons/SpinnerIcon';
+import logo from './logoff.png';
 import ResultsDisplay from './components/ResultsDisplay';
 import ProfileView from './components/ProfileView';
 
@@ -321,7 +322,7 @@ const App: React.FC = () => {
             {/* Small Logo for Header */}
             <div className="flex items-center gap-2">
                 <img 
-                    src="/logoff.png" 
+                    src={logo} 
                     alt="Logo" 
                     className="w-10 h-10 object-contain"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}

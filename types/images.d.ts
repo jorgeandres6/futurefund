@@ -1,0 +1,5 @@
+// Declarations para permitir importar imágenes en TypeScript
+declare module '*.png';
+declare module '*.jpg';
+declare module '*.jpeg';
+declare module '*.svg';
