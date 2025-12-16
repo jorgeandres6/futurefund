@@ -102,6 +102,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
              <div className="mb-4">
                  <img 
                     src={logo} 
+                    alt="FutureFund Logo" 
+                    className="w-10 h-10 object-contain mb-4"
                     onError={(e) => {
                         e.currentTarget.style.display = 'none';
                     }}

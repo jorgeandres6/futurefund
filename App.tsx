@@ -324,7 +324,7 @@ const App: React.FC = () => {
                 <img 
                     src={logo} 
                     alt="Logo" 
-                    className="w-10 h-10 object-contain"
+                    className="w-4 h-4 object-contain"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
                 <span className="font-bold text-xl tracking-tight text-white hidden sm:block">FutureFund</span>
