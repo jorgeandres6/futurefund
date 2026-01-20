@@ -387,7 +387,7 @@ export const generateCompanyProfileSummary = async (profileData: CompanyProfile)
       IMPORTANTE: Se adjuntan documentos (Brief o Estados Financieros). 
       Debes PRIORIZAR la información contenida en estos archivos adjuntos por sobre los metadatos anteriores si hay discrepancias o mayor detalle.
       
-      Tu tarea es escribir un "Resumen Ejecutivo" profesional actualizado.
+      Tu tarea es escribir un "Resumen Ejecutivo", de por lo menos 260 palabras, profesional actualizado.
       
       ESTRUCTURA OBLIGATORIA:
       Debes estructurar tu respuesta en EXACTAMENTE dos partes, usando estos encabezados exactos:
