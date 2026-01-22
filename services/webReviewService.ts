@@ -39,6 +39,52 @@ const analysisSchema = {
 };
 
 /**
+ * Analiza múltiples fondos en lote de forma automática (para usuarios premium)
+ * Procesa los fondos sin análisis previo y los almacena en la base de datos
+ */
+export const autoAnalyzeFundsForPremium = async (
+  funds: Array<{ nombre_fondo: string; url_fuente: string; analisis_aplicacion?: ApplicationAnalysis }>,
+  onProgress?: (current: number, total: number, fundName: string) => void,
+  signal?: AbortSignal
+): Promise<Map<string, ApplicationAnalysis>> => {
+  const results = new Map<string, ApplicationAnalysis>();
+  
+  // Filtrar solo fondos que no tienen análisis previo
+  const fundsToAnalyze = funds.filter(f => !f.analisis_aplicacion);
+  
+  if (fundsToAnalyze.length === 0) {
+    return results;
+  }
+
+  for (let i = 0; i < fundsToAnalyze.length; i++) {
+    // Verificar si la operación fue cancelada
+    if (signal?.aborted) {
+      break;
+    }
+
+    const fund = fundsToAnalyze[i];
+    
+    try {
+      onProgress?.(i + 1, fundsToAnalyze.length, fund.nombre_fondo);
+      
+      const analysis = await analyzeFundApplication(fund.nombre_fondo, fund.url_fuente);
+      
+      if (analysis) {
+        results.set(fund.nombre_fondo, analysis);
+      }
+      
+      // Pequeña pausa entre análisis para no saturar la API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error(`Error analyzing ${fund.nombre_fondo}:`, error);
+      // Continuar con el siguiente fondo
+    }
+  }
+
+  return results;
+};
+
+/**
  * Analiza la estructura web del fondo para determinar cómo aplicar.
  * Utiliza Google Search Grounding para navegar conceptualmente y encontrar páginas de "Guidelines" o "Apply".
  */

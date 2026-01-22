@@ -10,7 +10,8 @@ import {
   generateCompanyProfileSummary
 } from './services/geminiService';
 import { supabase } from './services/supabaseClient';
-import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus } from './services/supabaseService';
+import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus, saveFundAnalysis } from './services/supabaseService';
+import { autoAnalyzeFundsForPremium } from './services/webReviewService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -302,6 +303,45 @@ const App: React.FC = () => {
       setLoadingMessage('Fase 4/4: Finalizando reporte de capital...');
       const ecuadorExpandedResults = await expandEcuadorSearch(ecuadorInitialResults, signal, profile);
       addFunds(ecuadorExpandedResults);
+
+      // Fase 5: Análisis automático para usuarios premium (solo fondos nuevos sin análisis previo)
+      if (profile?.userType === 'premium') {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        
+        setLoadingMessage('🔍 Analizando proceso de aplicación automáticamente (Premium)...');
+        
+        // Obtener todos los fondos actuales
+        const allCurrentFunds = [...funds];
+        
+        // Analizar automáticamente fondos sin análisis previo
+        const analysisResults = await autoAnalyzeFundsForPremium(
+          allCurrentFunds,
+          (current, total, fundName) => {
+            setLoadingMessage(`🔍 Analizando ${current}/${total}: ${fundName}...`);
+          },
+          signal
+        );
+
+        // Actualizar fondos con los análisis obtenidos y guardar en Supabase
+        setFunds(currentFunds => {
+          return currentFunds.map(fund => {
+            const analysis = analysisResults.get(fund.nombre_fondo);
+            if (analysis) {
+              // Guardar análisis en Supabase de forma asíncrona
+              if (userId) {
+                saveFundAnalysis(userId, fund.nombre_fondo, analysis).catch(err => 
+                  console.error('Error saving analysis:', err)
+                );
+              }
+              return {
+                ...fund,
+                analisis_aplicacion: analysis
+              };
+            }
+            return fund;
+          });
+        });
+      }
 
     } catch (err: any) {
       if (err.name === 'AbortError') {

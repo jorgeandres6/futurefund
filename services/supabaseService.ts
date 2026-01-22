@@ -224,3 +224,39 @@ export const updateFundStatus = async (userId: string, fundName: string, status:
     throw error;
   }
 };
+
+/**
+ * Save or update fund analysis in Supabase
+ */
+export const saveFundAnalysis = async (
+  userId: string,
+  fundName: string,
+  analysis: {
+    es_elegible: string;
+    resumen_requisitos: string[];
+    pasos_aplicacion: string[];
+    fechas_clave: string;
+    link_directo_aplicacion: string;
+    contact_emails: string[];
+  }
+) => {
+  try {
+    const { error } = await supabase
+      .from<'funds', FundsTable>('funds')
+      .update({
+        es_elegible: analysis.es_elegible,
+        resumen_requisitos: analysis.resumen_requisitos,
+        pasos_aplicacion: analysis.pasos_aplicacion,
+        fechas_clave: analysis.fechas_clave,
+        link_directo_aplicacion: analysis.link_directo_aplicacion,
+        contact_emails: analysis.contact_emails,
+      })
+      .eq('user_id', userId)
+      .eq('nombre_fondo', fundName);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error saving fund analysis:', error);
+    throw error;
+  }
+};
