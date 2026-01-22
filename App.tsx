@@ -34,6 +34,9 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'search' | 'dashboard' | 'profile'>('search');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [activeAnalysisCount, setActiveAnalysisCount] = useState<number>(0);
   
   // Ref for aborting search
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -225,6 +228,9 @@ const App: React.FC = () => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsLoading(false);
+      setIsSearching(false);
+      setActiveAnalysisCount(0);
+      setIsAnalyzing(false);
       setLoadingMessage('Búsqueda detenida por el usuario.');
       setError('La búsqueda fue detenida manualmente.');
     }
@@ -244,6 +250,7 @@ const App: React.FC = () => {
     // Remove automatic tab switch to keep user on search results
     // setActiveTab('search'); 
     setIsLoading(true);
+    setIsSearching(true);
     setError(null);
 
     // Función auxiliar para añadir fondos incrementalmente sin duplicados
@@ -255,10 +262,18 @@ const App: React.FC = () => {
         const fundsToAnalyze = newFunds.filter(f => !f.analisis_aplicacion);
         
         if (fundsToAnalyze.length > 0) {
+          // Incrementar contador de análisis activos
+          setActiveAnalysisCount(prev => prev + fundsToAnalyze.length);
+          setIsAnalyzing(true);
+          
           // Analizar fondos en segundo plano de forma asíncrona
           (async () => {
             for (const fund of fundsToAnalyze) {
-              if (signal.aborted) break;
+              if (signal.aborted) {
+                setActiveAnalysisCount(0);
+                setIsAnalyzing(false);
+                break;
+              }
               
               try {
                 setLoadingMessage(`🔍 Analizando: ${fund.nombre_fondo}...`);
@@ -285,6 +300,15 @@ const App: React.FC = () => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
               } catch (error) {
                 console.error(`Error analyzing ${fund.nombre_fondo}:`, error);
+              } finally {
+                // Decrementar contador
+                setActiveAnalysisCount(prev => {
+                  const newCount = Math.max(0, prev - 1);
+                  if (newCount === 0) {
+                    setIsAnalyzing(false);
+                  }
+                  return newCount;
+                });
               }
             }
           })();
@@ -360,6 +384,7 @@ const App: React.FC = () => {
       // Only set loading to false if this is the active controller
       if (abortControllerRef.current === controller) {
          setIsLoading(false);
+         setIsSearching(false);
          setLoadingMessage('');
          abortControllerRef.current = null;
       }
@@ -429,6 +454,26 @@ const App: React.FC = () => {
                 />
                 <span className="font-bold text-xl tracking-tight text-white hidden sm:block">FutureFund</span>
             </div>
+
+            {/* Status Indicators */}
+            {(isSearching || isAnalyzing) && (
+              <div className="flex items-center gap-2">
+                {isSearching && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-900/30 border border-blue-700/50 rounded-full animate-pulse">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
+                    <span className="text-xs font-medium text-blue-300">Búsqueda en proceso</span>
+                  </div>
+                )}
+                {isAnalyzing && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-900/30 border border-purple-700/50 rounded-full animate-pulse">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-ping"></div>
+                    <span className="text-xs font-medium text-purple-300">
+                      Análisis en proceso {activeAnalysisCount > 0 && `(${activeAnalysisCount})`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
              {/* Show user company info if available */}
              {user.profile && (
