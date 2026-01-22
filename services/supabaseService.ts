@@ -119,15 +119,10 @@ export const loadProfile = async (userId: string): Promise<CompanyProfile | null
  */
 export const saveFunds = async (userId: string, funds: Fund[]) => {
   try {
-    // First, delete existing funds for this user
-    await supabase
-      .from<'funds', FundsTable>('funds')
-      .delete()
-      .eq('user_id', userId);
-
     if (funds.length === 0) return [];
 
-    // Insert new funds
+    // Use UPSERT to preserve external changes to application_status
+    // We only update fields that the application manages
     const fundsData: FundInsert[] = funds.map(fund => ({
       user_id: userId,
       nombre_fondo: fund.nombre_fondo,
@@ -145,12 +140,19 @@ export const saveFunds = async (userId: string, funds: Fund[]) => {
       fechas_clave: fund.analisis_aplicacion?.fechas_clave || null,
       link_directo_aplicacion: fund.analisis_aplicacion?.link_directo_aplicacion || null,
       contact_emails: fund.analisis_aplicacion?.contact_emails || null,
-      application_status: fund.applicationStatus || null,
+      // Only set application_status if explicitly provided by the app (not null/undefined)
+      // This preserves external changes to the field
+      ...(fund.applicationStatus ? { application_status: fund.applicationStatus } : {}),
     }));
 
+    // UPSERT: insert new records or update existing ones based on user_id + nombre_fondo
+    // onConflict specifies which columns form the unique constraint
     const { data, error } = await supabase
       .from<'funds', FundsTable>('funds')
-      .insert(fundsData)
+      .upsert(fundsData, {
+        onConflict: 'user_id,nombre_fondo',
+        ignoreDuplicates: false, // We want to update, not ignore
+      })
       .select();
 
     if (error) throw error;
@@ -197,7 +199,9 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
           link_directo_aplicacion: item.link_directo_aplicacion || '',
           contact_emails: item.contact_emails || [],
         } : undefined,
-      applicationStatus: item.application_status || 'PENDIENTE',
+      // Preserve the actual value from DB, including null (don't default to PENDIENTE)
+      // This allows external applications to manage this field
+      applicationStatus: item.application_status || undefined,
     }));
 
     return funds;

@@ -98,13 +98,20 @@ const App: React.FC = () => {
   }, []);
 
   // Persist funds to Supabase when they change
+  // Note: We use a ref to prevent unnecessary saves on every render
+  const lastSavedFundsRef = useRef<string>('');
   useEffect(() => {
     const persistFunds = async () => {
       if (userId && areFundsLoaded && funds.length > 0) {
-        try {
-          await saveFunds(userId, funds);
-        } catch (error) {
-          console.error('Error persisting funds:', error);
+        // Only save if funds actually changed (deep comparison via JSON)
+        const currentFundsJSON = JSON.stringify(funds);
+        if (currentFundsJSON !== lastSavedFundsRef.current) {
+          try {
+            await saveFunds(userId, funds);
+            lastSavedFundsRef.current = currentFundsJSON;
+          } catch (error) {
+            console.error('Error persisting funds:', error);
+          }
         }
       }
     };
@@ -322,8 +329,8 @@ const App: React.FC = () => {
         
         const initializedNewFunds = newFunds.map(f => ({
             ...f,
-            // Preserve existing status if found, otherwise default to PENDIENTE
-            applicationStatus: existingStatusMap.get(f.nombre_fondo.trim().toLowerCase()) || 'PENDIENTE'
+            // Preserve existing status if found, otherwise leave undefined (will be loaded from DB)
+            applicationStatus: existingStatusMap.get(f.nombre_fondo.trim().toLowerCase())
         }));
 
         const allFunds = [...prevFunds, ...initializedNewFunds];
