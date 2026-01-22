@@ -65,6 +65,9 @@ export interface CompanyProfile {
 
   // New field for AI generated content
   aiGeneratedSummary?: string;
+  
+  // User type for feature access control
+  userType?: 'demo' | 'basic' | 'premium';
 }
 
 export interface User {

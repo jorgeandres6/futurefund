@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   financials_mime_type TEXT,
   financial_metrics JSONB,
   ai_generated_summary TEXT,
+  user_type TEXT DEFAULT 'demo' CHECK (user_type IN ('demo', 'basic', 'premium')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id)

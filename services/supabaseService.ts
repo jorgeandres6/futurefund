@@ -38,6 +38,7 @@ export const saveProfile = async (userId: string, profile: CompanyProfile) => {
       financials_mime_type: profile.financialsMimeType,
       financial_metrics: (profile.financialMetrics as any) ?? null,
       ai_generated_summary: profile.aiGeneratedSummary,
+      user_type: profile.userType || 'demo', // Default to 'demo' for new users
     };
 
     const { data, error } = await supabase
@@ -103,6 +104,7 @@ export const loadProfile = async (userId: string): Promise<CompanyProfile | null
         ebitda: (profileData.financial_metrics as any).ebitda || '',
       } : undefined,
       aiGeneratedSummary: profileData.ai_generated_summary || undefined,
+      userType: (profileData.user_type as 'demo' | 'basic' | 'premium') || 'demo',
     };
 
     return profile;

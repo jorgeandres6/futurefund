@@ -12,6 +12,8 @@ interface AuthScreenProps {
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+  const [confirmationEmail, setConfirmationEmail] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -64,14 +66,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
         }
 
         if (data.user) {
-          const newUser: User = {
-            name: formData.name,
-            email: formData.email,
-            profile: undefined
-          };
-          
+          // Show email confirmation modal
+          setConfirmationEmail(formData.email);
+          setShowEmailConfirmation(true);
           setIsLoading(false);
-          onLogin(newUser, true);
+          
+          // Reset form
+          setFormData({ name: '', email: '', password: '' });
         }
       } else {
         // --- LOGIN LOGIC WITH SUPABASE ---
@@ -105,8 +106,80 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     }
   };
 
+  const handleCloseConfirmation = () => {
+    setShowEmailConfirmation(false);
+    setConfirmationEmail('');
+    setIsLoginMode(true);
+    setFormData({ name: '', email: '', password: '' });
+    setError('');
+  };
+
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-gray-900 p-4">
+      {/* Email Confirmation Modal */}
+      {showEmailConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-md bg-gray-800 border border-green-500/30 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Success Header */}
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="bg-white/20 rounded-full p-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-white">¡Registro Exitoso!</h2>
+              <p className="text-green-100 text-sm mt-2">Tu cuenta ha sido creada correctamente</p>
+            </div>
+
+            {/* Content */}
+            <div className="p-8">
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-6">
+                <p className="text-blue-200 text-sm leading-relaxed">
+                  📧 Hemos enviado un <strong>correo de confirmación</strong> a:
+                </p>
+                <p className="text-white font-semibold mt-2 break-all">{confirmationEmail}</p>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-gray-300 text-sm">Revisa tu bandeja de entrada</p>
+                </div>
+                <div className="flex gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-gray-300 text-sm">No olvides revisar la carpeta de <strong>spam</strong></p>
+                </div>
+                <div className="flex gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-gray-300 text-sm">Haz clic en el enlace para confirmar tu email</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 mb-6">
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  <strong>Nota:</strong> El enlace de confirmación es válido por 24 horas. Después deberás solicitar uno nuevo.
+                </p>
+              </div>
+
+              <button
+                onClick={handleCloseConfirmation}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition-all duration-200 hover:-translate-y-0.5"
+              >
+                Volver a Iniciar Sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden relative">
         {/* Background Accent */}
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400"></div>

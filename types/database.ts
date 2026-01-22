@@ -31,6 +31,7 @@ export interface Database {
           financials_mime_type: string | null
           financial_metrics: Json | null
           ai_generated_summary: string | null
+          user_type: string
           created_at: string
           updated_at: string
             }
@@ -56,6 +57,7 @@ export interface Database {
           financials_mime_type?: string | null
           financial_metrics?: Json | null
           ai_generated_summary?: string | null
+          user_type?: string
           created_at?: string
           updated_at?: string
         }
@@ -80,6 +82,7 @@ export interface Database {
           financials_mime_type?: string | null
           financial_metrics?: Json | null
           ai_generated_summary?: string | null
+          user_type?: string
           created_at?: string
           updated_at?: string
         }
