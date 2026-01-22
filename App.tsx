@@ -11,7 +11,7 @@ import {
 } from './services/geminiService';
 import { supabase } from './services/supabaseClient';
 import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus, saveFundAnalysis } from './services/supabaseService';
-import { autoAnalyzeFundsForPremium } from './services/webReviewService';
+import { analyzeFundApplication } from './services/webReviewService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -247,7 +247,51 @@ const App: React.FC = () => {
     setError(null);
 
     // Función auxiliar para añadir fondos incrementalmente sin duplicados
-    const addFunds = (newFunds: Fund[]) => {
+    // y ejecutar análisis automático para usuarios premium
+    const addFunds = async (newFunds: Fund[]) => {
+      // Para usuarios premium, analizar cada fondo nuevo automáticamente
+      if (user?.profile?.userType === 'premium' && newFunds.length > 0) {
+        // Filtrar solo fondos sin análisis previo
+        const fundsToAnalyze = newFunds.filter(f => !f.analisis_aplicacion);
+        
+        if (fundsToAnalyze.length > 0) {
+          // Analizar fondos en segundo plano de forma asíncrona
+          (async () => {
+            for (const fund of fundsToAnalyze) {
+              if (signal.aborted) break;
+              
+              try {
+                setLoadingMessage(`🔍 Analizando: ${fund.nombre_fondo}...`);
+                
+                const analysis = await analyzeFundApplication(fund.nombre_fondo, fund.url_fuente);
+                
+                if (analysis) {
+                  // Actualizar el fondo con el análisis
+                  setFunds(currentFunds => 
+                    currentFunds.map(f => 
+                      f.nombre_fondo === fund.nombre_fondo 
+                        ? { ...f, analisis_aplicacion: analysis }
+                        : f
+                    )
+                  );
+                  
+                  // Guardar en Supabase
+                  if (userId) {
+                    await saveFundAnalysis(userId, fund.nombre_fondo, analysis);
+                  }
+                }
+                
+                // Pequeña pausa entre análisis
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } catch (error) {
+                console.error(`Error analyzing ${fund.nombre_fondo}:`, error);
+              }
+            }
+          })();
+        }
+      }
+      
+      // Agregar fondos al estado
       setFunds(prevFunds => {
         // Create a map of existing funds statuses to preserve them
         const existingStatusMap = new Map(prevFunds.map(f => [f.nombre_fondo.trim().toLowerCase(), f.applicationStatus]));
@@ -276,7 +320,7 @@ const App: React.FC = () => {
       
       setLoadingMessage('Inicializando FutureFund con referencias verificadas...');
       const demoData = getDemoData();
-      addFunds(demoData);
+      await addFunds(demoData);
 
       // Fase 1: Descubrimiento Global (DAFs y Tipos de Financiamiento del Perfil)
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -284,64 +328,25 @@ const App: React.FC = () => {
         ? `Fase 1/4: Analizando oportunidades de ${profile.financingType.join(', ')} globales...` 
         : 'Fase 1/4: Analizando DAFs globales y tendencias...');
       const globalInitialResults = await discoverFinancingSources(signal, profile);
-      addFunds(globalInitialResults);
+      await addFunds(globalInitialResults);
 
       // Fase 2: Expansión Global (Nicho)
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
       setLoadingMessage('Fase 2/4: Profundizando en fondos de inversión ODS...');
       const globalExpandedResults = await expandSearch(globalInitialResults, signal, profile);
-      addFunds(globalExpandedResults);
+      await addFunds(globalExpandedResults);
 
       // Fase 3: Descubrimiento Ecuador (Local)
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
       setLoadingMessage('Fase 3/4: Buscando estructuras y fondos para Reciclaje/ODS...');
       const ecuadorInitialResults = await discoverEcuadorFinancingSources(signal, profile);
-      addFunds(ecuadorInitialResults);
+      await addFunds(ecuadorInitialResults);
 
       // Fase 4: Expansión Ecuador (Cooperación)
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
       setLoadingMessage('Fase 4/4: Finalizando reporte de capital...');
       const ecuadorExpandedResults = await expandEcuadorSearch(ecuadorInitialResults, signal, profile);
-      addFunds(ecuadorExpandedResults);
-
-      // Fase 5: Análisis automático para usuarios premium (solo fondos nuevos sin análisis previo)
-      if (profile?.userType === 'premium') {
-        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        
-        setLoadingMessage('🔍 Analizando proceso de aplicación automáticamente (Premium)...');
-        
-        // Obtener todos los fondos actuales
-        const allCurrentFunds = [...funds];
-        
-        // Analizar automáticamente fondos sin análisis previo
-        const analysisResults = await autoAnalyzeFundsForPremium(
-          allCurrentFunds,
-          (current, total, fundName) => {
-            setLoadingMessage(`🔍 Analizando ${current}/${total}: ${fundName}...`);
-          },
-          signal
-        );
-
-        // Actualizar fondos con los análisis obtenidos y guardar en Supabase
-        setFunds(currentFunds => {
-          return currentFunds.map(fund => {
-            const analysis = analysisResults.get(fund.nombre_fondo);
-            if (analysis) {
-              // Guardar análisis en Supabase de forma asíncrona
-              if (userId) {
-                saveFundAnalysis(userId, fund.nombre_fondo, analysis).catch(err => 
-                  console.error('Error saving analysis:', err)
-                );
-              }
-              return {
-                ...fund,
-                analisis_aplicacion: analysis
-              };
-            }
-            return fund;
-          });
-        });
-      }
+      await addFunds(ecuadorExpandedResults);
 
     } catch (err: any) {
       if (err.name === 'AbortError') {
