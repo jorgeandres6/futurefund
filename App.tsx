@@ -9,6 +9,8 @@ import {
   getDemoData,
   generateCompanyProfileSummary
 } from './services/geminiService';
+import { supabase } from './services/supabaseClient';
+import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus } from './services/supabaseService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -18,31 +20,14 @@ import logo from './logoff.png';
 import ResultsDisplay from './components/ResultsDisplay';
 import ProfileView from './components/ProfileView';
 
-// Helper to sync user to the "DB"
-const syncUserToDb = (updatedUser: User) => {
-    try {
-        const usersDbStr = localStorage.getItem('users_db');
-        if (usersDbStr) {
-            const usersDb: User[] = JSON.parse(usersDbStr);
-            const index = usersDb.findIndex(u => u.email === updatedUser.email);
-            
-            if (index !== -1) {
-                // Merge changes carefully to preserve password if passing partial updates
-                // though usually updatedUser here is full session object
-                usersDb[index] = { ...usersDb[index], ...updatedUser };
-                localStorage.setItem('users_db', JSON.stringify(usersDb));
-            }
-        }
-    } catch (e) {
-        console.error("Failed to sync user to DB:", e);
-    }
-};
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [userId, setUserId] = useState<string | null>(null); // Store Supabase user ID
   const [funds, setFunds] = useState<Fund[]>([]);
-  const [areFundsLoaded, setAreFundsLoaded] = useState(false); // Track if we have restored funds to avoid overwriting with empty state
+  const [areFundsLoaded, setAreFundsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true); // Loading initial session
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'search' | 'dashboard' | 'profile'>('search');
@@ -52,95 +37,127 @@ const App: React.FC = () => {
   // Ref for aborting search
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Check for existing session and restore funds
+  // Check for existing Supabase session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
+    const initializeSession = async () => {
       try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
+        const { data: { session } } = await supabase.auth.getSession();
         
-        // Restore funds for this user specifically
-        const savedFunds = localStorage.getItem(`user_funds_${parsedUser.email}`);
-        if (savedFunds) {
-            try {
-                setFunds(JSON.parse(savedFunds));
-            } catch(e) { console.error("Error parsing saved funds", e); }
+        if (session?.user) {
+          const userName = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuario';
+          
+          // Load profile from Supabase
+          const profile = await loadProfile(session.user.id);
+          
+          const loggedInUser: User = {
+            name: userName,
+            email: session.user.email!,
+            profile: profile || undefined
+          };
+
+          setUser(loggedInUser);
+          setUserId(session.user.id);
+
+          // Load funds from Supabase
+          const userFunds = await loadFunds(session.user.id);
+          setFunds(userFunds);
+          setAreFundsLoaded(true);
+
+          // Show onboarding if no profile
+          if (!profile) {
+            setShowOnboarding(true);
+          }
         }
-        setAreFundsLoaded(true);
-      } catch (e) {
-        console.error("Failed to parse user session");
+      } catch (error) {
+        console.error('Error initializing session:', error);
+      } finally {
+        setIsInitializing(false);
       }
-    }
+    };
+
+    initializeSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserId(null);
+        setFunds([]);
+        setAreFundsLoaded(false);
+        setShowOnboarding(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Persist funds when they change, but only after initial load
+  // Persist funds to Supabase when they change
   useEffect(() => {
-    if (user && areFundsLoaded) {
-      localStorage.setItem(`user_funds_${user.email}`, JSON.stringify(funds));
-    }
-  }, [funds, user, areFundsLoaded]);
-
-  const handleLogin = (newUser: User, isSignup: boolean = false) => {
-    setUser(newUser);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    
-    // Load persisted funds for this user if they exist
-    const savedFunds = localStorage.getItem(`user_funds_${newUser.email}`);
-    if (savedFunds) {
-      try {
-        setFunds(JSON.parse(savedFunds));
-      } catch (e) {
-        setFunds([]);
+    const persistFunds = async () => {
+      if (userId && areFundsLoaded && funds.length > 0) {
+        try {
+          await saveFunds(userId, funds);
+        } catch (error) {
+          console.error('Error persisting funds:', error);
+        }
       }
-    } else {
-      setFunds([]);
-    }
-    setAreFundsLoaded(true);
-    
-    // If it's a new signup, show the onboarding form
-    // If it's login, check if profile exists
-    if (isSignup) {
-      setShowOnboarding(true);
-    } else if (!newUser.profile) {
-       // If user logs in but has no profile (incomplete signup previously?), show onboarding
-       setShowOnboarding(true);
+    };
+
+    persistFunds();
+  }, [funds, userId, areFundsLoaded]);
+
+  const handleLogin = async (newUser: User, isSignup: boolean = false) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        setUserId(session.user.id);
+
+        // Load profile from Supabase
+        const profile = await loadProfile(session.user.id);
+        
+        const userWithProfile = {
+          ...newUser,
+          profile: profile || undefined
+        };
+
+        setUser(userWithProfile);
+
+        // Load funds from Supabase
+        const userFunds = await loadFunds(session.user.id);
+        setFunds(userFunds);
+        setAreFundsLoaded(true);
+
+        // Show onboarding if new signup or no profile
+        if (isSignup || !profile) {
+          setShowOnboarding(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
     }
   };
 
   const handleOnboardingSubmit = async (profile: CompanyProfile) => {
-    if (user) {
+    if (user && userId) {
       setIsCreatingProfile(true);
       
       try {
-        // 2. Generar el resumen con IA
-        // Nota: Esto envía el base64 a la API
+        // Generate AI summary
         const aiSummary = await generateCompanyProfileSummary(profile);
-        
-        // 3. Limpiar el base64 pesado antes de guardar en state/localStorage
-        // Creamos una copia del perfil sin los datos del archivo pesado para el objeto User ligero
-        // PERO mantenemos el base64 en la primera generación para que funcione el servicio
-        const { briefFileBase64, financialsFileBase64, ...profileWithoutHeavyFiles } = profile;
-        
-        // We actually want to keep the base64 in the profile so the user can see/regenerate later?
-        // For localStorage quota reasons, it's risky. But the requirement says "regenerate with new files".
-        // If we strip them here, we can't regenerate from OLD files later without re-upload.
-        // However, the prompt specifically asks to regenerate with NEW files. 
-        // So we can strip them here, and require re-upload for edits, OR we keep them.
-        // For a robust "DB" simulation, let's keep them but warn about size.
-        // Actually, let's keep them in the profile object so ProfileView can pre-fill the state, 
-        // but note localStorage has a 5MB limit. 
         
         const profileWithBio = { ...profile, aiGeneratedSummary: aiSummary };
 
-        // 4. Actualizar usuario (Session and DB)
+        // Save to Supabase
+        await saveProfile(userId, profileWithBio);
+
+        // Update local state
         const updatedUser = { ...user, profile: profileWithBio };
-        
         setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser)); // Session
-        syncUserToDb(updatedUser); // Database Persistence
         
-        // 5. Cerrar onboarding y redirigir a perfil
+        // Close onboarding and redirect to profile
         setShowOnboarding(false);
         setActiveTab('profile');
       } catch (error) {
@@ -152,25 +169,38 @@ const App: React.FC = () => {
     }
   };
 
-  const handleProfileUpdate = (updatedProfile: CompanyProfile) => {
-    if (user) {
+  const handleProfileUpdate = async (updatedProfile: CompanyProfile) => {
+    if (user && userId) {
+      try {
+        // Save to Supabase
+        await saveProfile(userId, updatedProfile);
+
+        // Update local state
         const updatedUser = { ...user, profile: updatedProfile };
         setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser)); // Session
-        syncUserToDb(updatedUser); // Database Persistence
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        setError("Hubo un problema actualizando tu perfil.");
+      }
     }
   };
 
-  const handleLogout = () => {
-    setAreFundsLoaded(false); // Stop saving funds
-    setUser(null);
-    setFunds([]); 
-    localStorage.removeItem('user');
-    setActiveTab('search');
-    setShowOnboarding(false);
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setAreFundsLoaded(false);
+      setUser(null);
+      setUserId(null);
+      setFunds([]); 
+      setActiveTab('search');
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
-  const handleFundUpdate = useCallback((fundName: string, newStatus: string) => {
+  const handleFundUpdate = useCallback(async (fundName: string, newStatus: string) => {
+    // Update local state
     setFunds(currentFunds => 
       currentFunds.map(f => 
         f.nombre_fondo === fundName 
@@ -178,7 +208,16 @@ const App: React.FC = () => {
           : f
       )
     );
-  }, []);
+
+    // Update in Supabase
+    if (userId) {
+      try {
+        await updateFundStatus(userId, fundName, newStatus);
+      } catch (error) {
+        console.error('Error updating fund status:', error);
+      }
+    }
+  }, [userId]);
 
   const handleStopSearch = useCallback(() => {
     if (abortControllerRef.current) {
@@ -281,6 +320,22 @@ const App: React.FC = () => {
       }
     }
   }, [user]);
+
+  // Show loading screen while checking session
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-center p-4">
+        <div className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-sm max-w-md w-full flex flex-col items-center">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-blue-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
+            <SpinnerIcon className="w-16 h-16 text-blue-400 relative z-10 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">Cargando FutureFund</h2>
+          <p className="text-gray-400">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If not authenticated, show Auth Screen
   if (!user) {

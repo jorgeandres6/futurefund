@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import SpinnerIcon from './icons/SpinnerIcon';
 import logo from '../logoff.png';
+import { supabase } from '../services/supabaseClient';
 
 interface AuthScreenProps {
   onLogin: (user: User, isSignup?: boolean) => void;
@@ -31,9 +32,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     setIsLoading(true);
     setError('');
 
-    // Simular pequeño delay para UX
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     if (!formData.email || !formData.password) {
       setError('Por favor completa todos los campos requeridos.');
       setIsLoading(false);
@@ -46,47 +44,64 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       return;
     }
 
-    // Access "Database" from localStorage
-    const usersDbStr = localStorage.getItem('users_db');
-    const usersDb: User[] = usersDbStr ? JSON.parse(usersDbStr) : [];
+    try {
+      if (!isLoginMode) {
+        // --- SIGNUP LOGIC WITH SUPABASE ---
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              name: formData.name,
+            }
+          }
+        });
 
-    if (!isLoginMode) {
-      // --- SIGNUP LOGIC (PERSISTENT) ---
-      
-      // Check for duplicates
-      if (usersDb.some(u => u.email === formData.email)) {
-        setError('Ya existe una cuenta registrada con este correo electrónico.');
-        setIsLoading(false);
-        return;
-      }
+        if (signUpError) {
+          setError(signUpError.message);
+          setIsLoading(false);
+          return;
+        }
 
-      const newUser: User = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password, // Store password
-        profile: undefined // New users have no profile initially
-      };
-
-      // Save to DB
-      usersDb.push(newUser);
-      localStorage.setItem('users_db', JSON.stringify(usersDb));
-
-      setIsLoading(false);
-      onLogin(newUser, true);
-
-    } else {
-      // --- LOGIN LOGIC (PERSISTENT) ---
-      
-      const foundUser = usersDb.find(u => u.email === formData.email && u.password === formData.password);
-
-      if (foundUser) {
-        setIsLoading(false);
-        // Pass the user found in DB, which might contain a saved profile
-        onLogin(foundUser, false);
+        if (data.user) {
+          const newUser: User = {
+            name: formData.name,
+            email: formData.email,
+            profile: undefined
+          };
+          
+          setIsLoading(false);
+          onLogin(newUser, true);
+        }
       } else {
-        setError('Credenciales inválidas. Verifica tu correo y contraseña.');
-        setIsLoading(false);
+        // --- LOGIN LOGIC WITH SUPABASE ---
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (signInError) {
+          setError('Credenciales inválidas. Verifica tu correo y contraseña.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          const userName = data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Usuario';
+          
+          const loggedInUser: User = {
+            name: userName,
+            email: data.user.email!,
+            profile: undefined
+          };
+
+          setIsLoading(false);
+          onLogin(loggedInUser, false);
+        }
       }
+    } catch (err: any) {
+      setError(err.message || 'Ocurrió un error. Inténtalo de nuevo.');
+      setIsLoading(false);
     }
   };
 
