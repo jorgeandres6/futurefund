@@ -10,8 +10,7 @@ import {
   generateCompanyProfileSummary
 } from './services/geminiService';
 import { supabase } from './services/supabaseClient';
-import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus, saveFundAnalysis } from './services/supabaseService';
-import { analyzeFundApplication } from './services/webReviewService';
+import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus } from './services/supabaseService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -261,68 +260,9 @@ const App: React.FC = () => {
     setError(null);
 
     // Función auxiliar para añadir fondos incrementalmente sin duplicados
-    // y ejecutar análisis automático para usuarios premium
+    // Fondos se insertan SIN análisis - N8N los analizará automáticamente
     const addFunds = async (newFunds: Fund[]) => {
-      // Para usuarios premium, analizar cada fondo nuevo automáticamente
-      if (user?.profile?.userType === 'premium' && newFunds.length > 0) {
-        // Filtrar solo fondos sin análisis previo
-        const fundsToAnalyze = newFunds.filter(f => !f.analisis_aplicacion);
-        
-        if (fundsToAnalyze.length > 0) {
-          // Incrementar contador de análisis activos
-          setActiveAnalysisCount(prev => prev + fundsToAnalyze.length);
-          setIsAnalyzing(true);
-          
-          // Analizar fondos en segundo plano de forma asíncrona
-          (async () => {
-            for (const fund of fundsToAnalyze) {
-              if (signal.aborted) {
-                setActiveAnalysisCount(0);
-                setIsAnalyzing(false);
-                break;
-              }
-              
-              try {
-                setLoadingMessage(`🔍 Analizando: ${fund.nombre_fondo}...`);
-                
-                const analysis = await analyzeFundApplication(fund.nombre_fondo, fund.url_fuente);
-                
-                if (analysis) {
-                  // Actualizar el fondo con el análisis
-                  setFunds(currentFunds => 
-                    currentFunds.map(f => 
-                      f.nombre_fondo === fund.nombre_fondo 
-                        ? { ...f, analisis_aplicacion: analysis }
-                        : f
-                    )
-                  );
-                  
-                  // Guardar en Supabase
-                  if (userId) {
-                    await saveFundAnalysis(userId, fund.nombre_fondo, analysis);
-                  }
-                }
-                
-                // Pequeña pausa entre análisis
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              } catch (error) {
-                console.error(`Error analyzing ${fund.nombre_fondo}:`, error);
-              } finally {
-                // Decrementar contador
-                setActiveAnalysisCount(prev => {
-                  const newCount = Math.max(0, prev - 1);
-                  if (newCount === 0) {
-                    setIsAnalyzing(false);
-                  }
-                  return newCount;
-                });
-              }
-            }
-          })();
-        }
-      }
-      
-      // Agregar fondos al estado
+      // Agregar fondos al estado (sin análisis automático)
       setFunds(prevFunds => {
         // Create a map of existing funds statuses to preserve them
         const existingStatusMap = new Map(prevFunds.map(f => [f.nombre_fondo.trim().toLowerCase(), f.applicationStatus]));

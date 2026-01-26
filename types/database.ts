@@ -156,6 +156,63 @@ export interface Database {
           updated_at?: string
         }
       }
+      search_jobs: {
+        Row: {
+          id: string
+          user_id: string
+          status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+          progress: number
+          current_phase: string | null
+          error_message: string | null
+          funds_found: number
+          funds_analyzed: number
+          started_at: string | null
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+          auto_analyze: boolean
+          profile_snapshot: Json | null
+          result_summary: Json | null
+          webhook_url: string | null
+        }
+        Relationships: []
+        Insert: {
+          id?: string
+          user_id: string
+          status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+          progress?: number
+          current_phase?: string | null
+          error_message?: string | null
+          funds_found?: number
+          funds_analyzed?: number
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+          auto_analyze?: boolean
+          profile_snapshot?: Json | null
+          result_summary?: Json | null
+          webhook_url?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+          progress?: number
+          current_phase?: string | null
+          error_message?: string | null
+          funds_found?: number
+          funds_analyzed?: number
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+          auto_analyze?: boolean
+          profile_snapshot?: Json | null
+          result_summary?: Json | null
+          webhook_url?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -164,7 +221,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      job_status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
     }
   }
 }
