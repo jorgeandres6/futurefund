@@ -580,7 +580,7 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && (
              <div className="flex flex-col items-center w-full animate-fade-in">
                 {funds.length > 0 ? (
-                    <Dashboard funds={funds} />
+                    <Dashboard funds={funds} userId={userId || ''} />
                 ) : (
                     <div className="text-center mt-12 p-12 bg-gray-800/20 rounded-2xl border border-gray-700/30 max-w-2xl mx-auto flex flex-col items-center">
                         <div className="p-4 bg-gray-800 rounded-full mb-6">

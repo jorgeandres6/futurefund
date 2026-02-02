@@ -1,12 +1,16 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Fund } from '../types';
+import FundDetailModal from './FundDetailModal';
 
 interface DashboardProps {
   funds: Fund[];
+  userId: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ funds }) => {
+const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
+  const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
+  
   // Calculate statistics
   const stats = useMemo(() => {
     const totalFunds = funds.length;
@@ -108,7 +112,11 @@ const Dashboard: React.FC<DashboardProps> = ({ funds }) => {
             </thead>
             <tbody className="divide-y divide-gray-700">
               {funds.map((fund, index) => (
-                <tr key={`${fund.ticker_isin}-${index}`} className="hover:bg-gray-700/30 transition-colors">
+                <tr 
+                  key={`${fund.ticker_isin}-${index}`} 
+                  className="hover:bg-gray-700/30 transition-colors cursor-pointer"
+                  onClick={() => setSelectedFund(fund)}
+                >
                   <td className="px-6 py-4 text-gray-200 font-medium whitespace-nowrap">
                     {fund.nombre_fondo}
                   </td>
@@ -144,6 +152,15 @@ const Dashboard: React.FC<DashboardProps> = ({ funds }) => {
           </table>
         </div>
       </div>
+
+      {/* Fund Detail Modal */}
+      {selectedFund && (
+        <FundDetailModal 
+          fund={selectedFund}
+          userId={userId}
+          onClose={() => setSelectedFund(null)}
+        />
+      )}
     </div>
   );
 };

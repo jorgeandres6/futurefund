@@ -213,6 +213,52 @@ export interface Database {
           webhook_url?: string | null
         }
       }
+      email_tracking: {
+        Row: {
+          id: string
+          user_id: string | null
+          fund_id: string | null
+          email_type: 'received' | 'sent' | 'RECIBIDO' | 'ENVIADO' | 'recibido' | 'enviado'
+          from_email: string
+          to_email: string
+          email_body: string | null
+          date: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_tracking_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_tracking_fund_id_fkey"
+            columns: ["fund_id"]
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          }
+        ]
+        Insert: {
+          id?: string
+          user_id?: string | null
+          fund_id?: string | null
+          email_type: 'received' | 'sent' | 'RECIBIDO' | 'ENVIADO' | 'recibido' | 'enviado'
+          from_email: string
+          to_email: string
+          email_body?: string | null
+          date?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          fund_id?: string | null
+          email_type?: 'received' | 'sent' | 'RECIBIDO' | 'ENVIADO' | 'recibido' | 'enviado'
+          from_email?: string
+          to_email?: string
+          email_body?: string | null
+          date?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -264,3 +264,37 @@ export const saveFundAnalysis = async (
     throw error;
   }
 };
+
+/**
+ * Get emails related to a specific fund
+ */
+export const getFundEmails = async (userId: string, fundName: string) => {
+  try {
+    // First, get the fund_id from the funds table
+    const { data: fundData, error: fundError } = await supabase
+      .from<'funds', FundsTable>('funds')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('nombre_fondo', fundName)
+      .single();
+
+    if (fundError || !fundData) {
+      // No fund found or error, return empty array
+      return [];
+    }
+
+    // Then get the emails for this fund
+    const { data: emailData, error: emailError } = await supabase
+      .from('email_tracking')
+      .select('*')
+      .eq('fund_id', fundData.id)
+      .order('date', { ascending: false });
+
+    if (emailError) throw emailError;
+
+    return emailData || [];
+  } catch (error) {
+    console.error('Error getting fund emails:', error);
+    return [];
+  }
+};
