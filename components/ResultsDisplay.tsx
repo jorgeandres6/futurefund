@@ -1,16 +1,18 @@
 
 import React from 'react';
-import { Fund, CompanyProfile } from '../types';
+import { Fund, CompanyProfile, ApplicationAnalysis } from '../types';
 import FundCard from './FundCard';
 import DownloadIcon from './icons/DownloadIcon';
 
 interface ResultsDisplayProps {
   funds: Fund[];
   userProfile?: CompanyProfile;
+  userId?: string;
   onFundUpdate: (fundName: string, status: string) => void;
+  onAnalysisComplete?: (fundName: string, analysis: ApplicationAnalysis) => void;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ funds, userProfile, onFundUpdate }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ funds, userProfile, userId, onFundUpdate, onAnalysisComplete }) => {
   const downloadJSON = () => {
     const dataStr = JSON.stringify(funds, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
@@ -84,7 +86,9 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ funds, userProfile, onF
             key={`${fund.ticker_isin}-${index}`} 
             fund={fund} 
             userProfile={userProfile}
+            userId={userId}
             onStatusUpdate={onFundUpdate}
+            onAnalysisComplete={onAnalysisComplete}
           />
         ))}
       </div>

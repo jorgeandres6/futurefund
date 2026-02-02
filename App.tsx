@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Fund, User, CompanyProfile } from './types';
+import { Fund, User, CompanyProfile, ApplicationAnalysis } from './types';
 import { 
   discoverFinancingSources, 
   expandSearch, 
@@ -228,6 +228,17 @@ const App: React.FC = () => {
       }
     }
   }, [userId]);
+
+  const handleAnalysisComplete = useCallback((fundName: string, analysis: ApplicationAnalysis) => {
+    // Update local state with the analysis data
+    setFunds(currentFunds => 
+      currentFunds.map(f => 
+        f.nombre_fondo === fundName 
+          ? { ...f, analisis_aplicacion: analysis } 
+          : f
+      )
+    );
+  }, []);
 
   const handleStopSearch = useCallback(() => {
     if (abortControllerRef.current) {
@@ -570,7 +581,9 @@ const App: React.FC = () => {
                       <ResultsDisplay 
                           funds={funds} 
                           userProfile={user?.profile} 
+                          userId={userId || undefined}
                           onFundUpdate={handleFundUpdate}
+                          onAnalysisComplete={handleAnalysisComplete}
                       />
                    </div>
                 )}

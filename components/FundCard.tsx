@@ -2,15 +2,18 @@
 import React, { useState } from 'react';
 import { Fund, ApplicationAnalysis, CompanyProfile } from '../types';
 import { analyzeFundApplication } from '../services/webReviewService';
+import { saveFundAnalysis } from '../services/supabaseService';
 import SpinnerIcon from './icons/SpinnerIcon';
 
 interface FundCardProps {
   fund: Fund;
   userProfile?: CompanyProfile;
+  userId?: string;
   onStatusUpdate: (fundName: string, status: string) => void;
+  onAnalysisComplete?: (fundName: string, analysis: ApplicationAnalysis) => void;
 }
 
-const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, onStatusUpdate }) => {
+const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatusUpdate, onAnalysisComplete }) => {
   const [analysis, setAnalysis] = useState<ApplicationAnalysis | null>(fund.analisis_aplicacion || null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +31,22 @@ const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, onStatusUpdate }
       const result = await analyzeFundApplication(fund.nombre_fondo, fund.url_fuente);
       if (result) {
         setAnalysis(result);
-        // Optionally update the parent state here if needed, but local state works for display
+        
+        // Save analysis to database
+        if (userId) {
+          try {
+            await saveFundAnalysis(userId, fund.nombre_fondo, result);
+            console.log('Análisis guardado en la base de datos');
+            
+            // Notify parent component about the completed analysis
+            if (onAnalysisComplete) {
+              onAnalysisComplete(fund.nombre_fondo, result);
+            }
+          } catch (dbError) {
+            console.error('Error al guardar el análisis en la base de datos:', dbError);
+            // No bloqueamos la UI por un error de guardado, pero lo registramos
+          }
+        }
       } else {
         setError("No se pudo extraer información clara de aplicación.");
       }
