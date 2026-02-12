@@ -190,7 +190,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                   </div>
                   <div>
                     <p className="text-gray-400 text-sm mb-1">Fecha de Búsqueda</p>
-                    <p className="text-white font-medium">{formatDate(fund.fecha_scrapeo)}</p>
+                    <p className="text-white font-medium">{formatDate(fund.created_at || fund.fecha_scrapeo)}</p>
                   </div>
                   <div className="col-span-full">
                     <p className="text-gray-400 text-sm mb-1">URL Fuente</p>
