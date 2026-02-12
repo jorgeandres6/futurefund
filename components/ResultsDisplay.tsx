@@ -25,7 +25,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ funds, userProfile, use
   };
   
   const convertToCSV = (data: Fund[]): string => {
-    const header = 'nombre_fondo,gestor_activos,ticker_isin,ods_encontrados,url_fuente,fecha_scrapeo';
+    const header = 'nombre_fondo,gestor_activos,ticker_isin,ods_encontrados,url_fuente,fecha_creacion';
     const rows = data.map(fund => {
       const ods = `"${fund.alineacion_detectada.ods_encontrados.join(', ')}"`;
       const values = [
@@ -34,7 +34,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ funds, userProfile, use
         `"${fund.ticker_isin}"`,
         ods,
         `"${fund.url_fuente}"`,
-        `"${fund.fecha_scrapeo}"`
+        `"${fund.created_at || fund.fecha_scrapeo}"`
       ];
       return values.join(',');
     });

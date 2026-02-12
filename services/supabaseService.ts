@@ -205,6 +205,10 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
       // Preserve the actual value from DB, including null (don't default to PENDIENTE)
       // This allows external applications to manage this field
       applicationStatus: item.application_status || undefined,
+      updated_at: item.updated_at,
+      analyzed_at: item.analyzed_at || undefined,
+      history: item.history as any || undefined,
+      created_at: item.created_at,
     }));
 
     return funds;

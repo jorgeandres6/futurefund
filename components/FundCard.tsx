@@ -335,7 +335,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatus
         >
           URL Principal Detectada
         </a>
-        <span>Extraído el: {new Date(fund.fecha_scrapeo).toLocaleString()}</span>
+        <span>Extraído el: {new Date(fund.created_at || fund.fecha_scrapeo).toLocaleString()}</span>
       </div>
     </div>
   );

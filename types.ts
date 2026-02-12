@@ -48,6 +48,7 @@ export interface Fund {
   history?: HistoryEntry[]; // History of communications and interactions
   analyzed_at?: string; // Timestamp of when the fund was analyzed
   updated_at?: string; // Timestamp of last update
+  created_at?: string; // Timestamp of when the fund was created
 }
 
 export interface FinancialMetrics {
