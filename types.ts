@@ -14,6 +14,23 @@ export interface ApplicationAnalysis {
   contact_emails: string[];
 }
 
+export interface HistoryEntry {
+  id?: string;
+  type: 'email_sent' | 'email_received' | 'form_filled' | 'note' | 'call' | 'meeting';
+  date: string;
+  description: string;
+  details?: {
+    from?: string;
+    to?: string;
+    subject?: string;
+    body?: string;
+    form_name?: string;
+    form_data?: Record<string, any>;
+    notes?: string;
+    [key: string]: any;
+  };
+}
+
 export interface Fund {
   nombre_fondo: string;
   gestor_activos: string;
@@ -28,6 +45,7 @@ export interface Fund {
   evidencia_texto: string;
   analisis_aplicacion?: ApplicationAnalysis; // Optional field to store analysis
   applicationStatus?: string; // Status of the application (PENDIENTE, CONTACTED, etc.)
+  history?: HistoryEntry[]; // History of communications and interactions
 }
 
 export interface FinancialMetrics {

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Fund } from '../types';
+import { Fund, HistoryEntry } from '../types';
 import { getFundEmails } from '../services/supabaseService';
 
 interface EmailTracking {
@@ -21,7 +21,7 @@ interface FundDetailModalProps {
 const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose }) => {
   const [emails, setEmails] = useState<EmailTracking[]>([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
-  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -151,6 +151,21 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             {emails.length > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {emails.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-6 py-3 font-medium text-sm transition-colors relative ${
+              activeTab === 'history'
+                ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Historial
+            {fund.history && fund.history.length > 0 && (
+              <span className="ml-2 bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {fund.history.length}
               </span>
             )}
           </button>
@@ -412,6 +427,117 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                   </svg>
                   <p className="text-gray-400 text-lg">No hay emails registrados</p>
                   <p className="text-gray-500 text-sm mt-2">Los emails enviados y recibidos aparecerán aquí</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              {fund.history && fund.history.length > 0 ? (
+                fund.history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry, index) => (
+                  <div key={index} className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {entry.type === 'email_sent' && (
+                          <div className="bg-blue-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type === 'email_received' && (
+                          <div className="bg-green-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type === 'form_filled' && (
+                          <div className="bg-purple-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type === 'note' && (
+                          <div className="bg-yellow-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type === 'call' && (
+                          <div className="bg-indigo-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type === 'meeting' && (
+                          <div className="bg-red-900/50 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="text-white font-medium">{entry.description}</h4>
+                          <span className="text-gray-400 text-sm">{formatDate(entry.date)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {entry.details && Object.keys(entry.details).length > 0 && (
+                      <div className="bg-gray-900/50 rounded p-4 mt-3">
+                        {entry.details.from && (
+                          <div className="flex text-sm mb-2">
+                            <span className="text-gray-400 w-24">De:</span>
+                            <span className="text-gray-300">{entry.details.from}</span>
+                          </div>
+                        )}
+                        {entry.details.to && (
+                          <div className="flex text-sm mb-2">
+                            <span className="text-gray-400 w-24">Para:</span>
+                            <span className="text-gray-300">{entry.details.to}</span>
+                          </div>
+                        )}
+                        {entry.details.subject && (
+                          <div className="flex text-sm mb-2">
+                            <span className="text-gray-400 w-24">Asunto:</span>
+                            <span className="text-gray-300">{entry.details.subject}</span>
+                          </div>
+                        )}
+                        {entry.details.body && (
+                          <div className="mt-3">
+                            <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
+                              {entry.details.body}
+                            </p>
+                          </div>
+                        )}
+                        {entry.details.form_name && (
+                          <div className="flex text-sm mb-2">
+                            <span className="text-gray-400 w-24">Formulario:</span>
+                            <span className="text-gray-300">{entry.details.form_name}</span>
+                          </div>
+                        )}
+                        {entry.details.notes && (
+                          <div className="mt-3">
+                            <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
+                              {entry.details.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-gray-400 text-lg">No hay historial registrado</p>
+                  <p className="text-gray-500 text-sm mt-2">Las comunicaciones y actividades aparecerán aquí</p>
                 </div>
               )}
             </div>

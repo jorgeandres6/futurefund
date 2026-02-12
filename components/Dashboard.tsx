@@ -181,9 +181,9 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[800px] overflow-y-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-gray-900 text-gray-400 uppercase tracking-wider text-xs">
+            <thead className="bg-gray-900 text-gray-400 uppercase tracking-wider text-xs sticky top-0 z-10 shadow-md">
               <tr>
                 <th 
                   scope="col" 
@@ -193,6 +193,20 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   <div className="flex items-center space-x-1">
                     <span>Nombre del Fondo</span>
                     {sortColumn === 'nombre' && (
+                      <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
+                  onClick={() => handleSort('fecha')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Fecha Actualización</span>
+                    {sortColumn === 'fecha' && (
                       <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
@@ -255,20 +269,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                     )}
                   </div>
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
-                  onClick={() => handleSort('fecha')}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Fecha Actualización</span>
-                    {sortColumn === 'fecha' && (
-                      <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -287,6 +287,13 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   >
                     <td className="px-6 py-4 text-gray-200 font-medium whitespace-nowrap">
                       {fund.nombre_fondo}
+                    </td>
+                    <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
+                      {new Date(fund.fecha_scrapeo).toLocaleDateString('es-ES', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
                     </td>
                     <td className="px-6 py-4 text-gray-300">
                       {fund.gestor_activos}
@@ -313,13 +320,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                     </td>
                     <td className="px-6 py-4 text-gray-400 max-w-xs truncate">
                       {fund.alineacion_detectada.ods_encontrados.map(ods => ods.split(':')[0]).join(', ')}
-                    </td>
-                    <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
-                      {new Date(fund.fecha_scrapeo).toLocaleDateString('es-ES', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
                     </td>
                   </tr>
                 ))
