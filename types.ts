@@ -46,6 +46,8 @@ export interface Fund {
   analisis_aplicacion?: ApplicationAnalysis; // Optional field to store analysis
   applicationStatus?: string; // Status of the application (PENDIENTE, CONTACTED, etc.)
   history?: HistoryEntry[]; // History of communications and interactions
+  analyzed_at?: string; // Timestamp of when the fund was analyzed
+  updated_at?: string; // Timestamp of last update
 }
 
 export interface FinancialMetrics {

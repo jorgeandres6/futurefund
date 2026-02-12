@@ -61,8 +61,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           bValue = b.alineacion_detectada.ods_encontrados.length;
           break;
         case 'fecha':
-          aValue = new Date(a.fecha_scrapeo).getTime();
-          bValue = new Date(b.fecha_scrapeo).getTime();
+          aValue = new Date(a.updated_at || a.fecha_scrapeo).getTime();
+          bValue = new Date(b.updated_at || b.fecha_scrapeo).getTime();
           break;
       }
 
@@ -289,11 +289,14 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       {fund.nombre_fondo}
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
-                      {new Date(fund.fecha_scrapeo).toLocaleDateString('es-ES', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
+                      {(() => {
+                        const date = fund.updated_at || fund.fecha_scrapeo;
+                        return new Date(date).toLocaleDateString('es-ES', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        });
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-gray-300">
                       {fund.gestor_activos}

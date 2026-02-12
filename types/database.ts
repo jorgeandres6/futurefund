@@ -107,6 +107,8 @@ export interface Database {
           link_directo_aplicacion: string | null
           contact_emails: string[] | null
           application_status: string | null
+          analyzed_at: string | null
+          history: Json | null
           created_at: string
           updated_at: string
         }
@@ -130,6 +132,8 @@ export interface Database {
           link_directo_aplicacion?: string | null
           contact_emails?: string[] | null
           application_status?: string | null
+          analyzed_at?: string | null
+          history?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -152,6 +156,8 @@ export interface Database {
           link_directo_aplicacion?: string | null
           contact_emails?: string[] | null
           application_status?: string | null
+          analyzed_at?: string | null
+          history?: Json | null
           created_at?: string
           updated_at?: string
         }

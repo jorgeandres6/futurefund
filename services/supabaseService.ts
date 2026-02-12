@@ -140,6 +140,9 @@ export const saveFunds = async (userId: string, funds: Fund[]) => {
       fechas_clave: fund.analisis_aplicacion?.fechas_clave || null,
       link_directo_aplicacion: fund.analisis_aplicacion?.link_directo_aplicacion || null,
       contact_emails: fund.analisis_aplicacion?.contact_emails || null,
+      // Update analyzed_at when fund has analysis or if explicitly provided
+      ...(fund.analyzed_at ? { analyzed_at: fund.analyzed_at } : 
+          fund.analisis_aplicacion ? { analyzed_at: new Date().toISOString() } : {}),
       // Only set application_status if explicitly provided by the app (not null/undefined)
       // This preserves external changes to the field
       ...(fund.applicationStatus ? { application_status: fund.applicationStatus } : {}),
@@ -254,6 +257,7 @@ export const saveFundAnalysis = async (
         fechas_clave: analysis.fechas_clave,
         link_directo_aplicacion: analysis.link_directo_aplicacion,
         contact_emails: analysis.contact_emails,
+        analyzed_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
       .eq('nombre_fondo', fundName);
