@@ -39,6 +39,8 @@ const App: React.FC = () => {
   
   // Ref for aborting search
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track last saved funds snapshot to avoid re-saving on initial load
+  const lastSavedFundsRef = useRef<string>('');
 
   // Check for existing Supabase session on mount
   useEffect(() => {
@@ -64,6 +66,7 @@ const App: React.FC = () => {
           // Load funds from Supabase
           const userFunds = await loadFunds(session.user.id);
           setFunds(userFunds);
+          lastSavedFundsRef.current = JSON.stringify(userFunds);
           setAreFundsLoaded(true);
 
           // Show onboarding if no profile
@@ -98,7 +101,6 @@ const App: React.FC = () => {
 
   // Persist funds to Supabase when they change
   // Note: We use a ref to prevent unnecessary saves on every render
-  const lastSavedFundsRef = useRef<string>('');
   useEffect(() => {
     const persistFunds = async () => {
       if (userId && areFundsLoaded && funds.length > 0) {
@@ -138,6 +140,7 @@ const App: React.FC = () => {
         // Load funds from Supabase
         const userFunds = await loadFunds(session.user.id);
         setFunds(userFunds);
+        lastSavedFundsRef.current = JSON.stringify(userFunds);
         setAreFundsLoaded(true);
 
         // Show onboarding if new signup or no profile
