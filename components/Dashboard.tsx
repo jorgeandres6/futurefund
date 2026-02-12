@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Fund } from '../types';
 import FundDetailModal from './FundDetailModal';
+import DownloadIcon from './icons/DownloadIcon';
 
 interface DashboardProps {
   funds: Fund[];
@@ -73,6 +74,61 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
 
     return result;
   }, [funds, searchText, sortColumn, sortDirection]);
+
+  // Export to CSV function
+  const exportToCSV = () => {
+    const header = [
+      'Nombre del Fondo',
+      'Fecha de Actualización',
+      'Gestor de Activos',
+      'Ticker/ISIN',
+      'Estado',
+      'Puntuación de Impacto',
+      'ODS Encontrados',
+      'URL Fuente',
+      'Es Elegible',
+      'Emails de Contacto',
+      'Link de Aplicación',
+      'Resumen de Requisitos',
+      'Pasos de Aplicación',
+      'Fechas Clave',
+      'Historial'
+    ].join(',');
+
+    const rows = filteredAndSortedFunds.map(fund => {
+      const values = [
+        `"${fund.nombre_fondo.replace(/"/g, '""')}"`,
+        `"${fund.updated_at ? new Date(fund.updated_at).toLocaleDateString('es-ES') : new Date(fund.fecha_scrapeo).toLocaleDateString('es-ES')}"`,
+        `"${fund.gestor_activos.replace(/"/g, '""')}"`,
+        `"${fund.ticker_isin}"`,
+        `"${fund.applicationStatus || 'N/A'}"`,
+        `"${fund.alineacion_detectada.puntuacion_impacto}"`,
+        `"${fund.alineacion_detectada.ods_encontrados.join('; ')}"`,
+        `"${fund.url_fuente}"`,
+        `"${fund.analisis_aplicacion?.es_elegible || 'N/A'}"`,
+        `"${fund.analisis_aplicacion?.contact_emails?.join('; ') || 'N/A'}"`,
+        `"${fund.analisis_aplicacion?.link_directo_aplicacion || 'N/A'}"`,
+        `"${fund.analisis_aplicacion?.resumen_requisitos?.join('; ') || 'N/A'}"`,
+        `"${fund.analisis_aplicacion?.pasos_aplicacion?.join('; ') || 'N/A'}"`,
+        `"${fund.analisis_aplicacion?.fechas_clave || 'N/A'}"`,
+        `"${fund.history ? JSON.stringify(fund.history).replace(/"/g, '""') : 'N/A'}"`
+      ];
+      return values.join(',');
+    });
+
+    const csvContent = [header, ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const exportFileName = `reporte_fondos_${new Date().toISOString().slice(0, 10)}.csv`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', url);
+    linkElement.setAttribute('download', exportFileName);
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    document.body.removeChild(linkElement);
+    URL.revokeObjectURL(url);
+  };
   
   // Calculate statistics
   const stats = useMemo(() => {
@@ -162,22 +218,32 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
         <div className="p-4 border-b border-gray-700 bg-gray-900/50">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-200">Resumen Ejecutivo de Fondos</h3>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar fondo por nombre..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="bg-gray-700 text-gray-200 placeholder-gray-400 border border-gray-600 rounded-lg py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
-              />
-              <svg 
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
+            <div className="flex items-center gap-3">
+              <button
+                onClick={exportToCSV}
+                className="flex items-center bg-green-900/30 border border-green-800 hover:bg-green-800/50 text-green-200 font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm"
+                title="Descargar reporte completo"
               >
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
+                <DownloadIcon className="w-4 h-4 mr-2" />
+                Descargar Reporte
+              </button>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Buscar fondo por nombre..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="bg-gray-700 text-gray-200 placeholder-gray-400 border border-gray-600 rounded-lg py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                />
+                <svg 
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 20 20" 
+                  fill="currentColor"
+                >
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
