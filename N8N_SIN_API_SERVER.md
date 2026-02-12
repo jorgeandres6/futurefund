@@ -147,14 +147,20 @@ GOOGLE_CSE_ID = your-cse-id
    
    // Extraer fondos del texto
    const funds = JSON.parse(text); // Gemini devuelve JSON
+   const now = new Date().toISOString();
    
    return funds.map(fund => ({
      user_id: $node["Build Search Query"].json.userId,
      nombre_fondo: fund.name,
-     gestor: fund.manager,
-     monto_disponible: fund.amount,
-     descripcion: fund.description,
-     url_aplicacion: fund.url,
+     gestor_activos: fund.manager,
+     ticker_isin: fund.ticker || 'N/A',
+     url_fuente: fund.url,
+     fecha_scrapeo: now,
+     ods_encontrados: fund.ods || [],
+     keywords_encontradas: fund.keywords || [],
+     puntuacion_impacto: 'Pendiente',
+     evidencia_texto: fund.description || '',
+     es_elegible: null,
      analyzed_at: null  // ⚠️ Sin análisis automático
    }));
    ```
@@ -170,9 +176,15 @@ GOOGLE_CSE_ID = your-cse-id
    {
      "user_id": "{{$json.user_id}}",
      "nombre_fondo": "{{$json.nombre_fondo}}",
-     "gestor": "{{$json.gestor}}",
+     "gestor_activos": "{{$json.gestor_activos}}",
+     "ticker_isin": "{{$json.ticker_isin}}",
+     "url_fuente": "{{$json.url_fuente}}",
+     "fecha_scrapeo": "{{$json.fecha_scrapeo}}",
+     "ods_encontrados": {{$json.ods_encontrados}},
+     "keywords_encontradas": {{$json.keywords_encontradas}},
+     "puntuacion_impacto": "{{$json.puntuacion_impacto}}",
+     "evidencia_texto": "{{$json.evidencia_texto}}",
      "analyzed_at": null
-     ...
    }
    ```
 
@@ -223,7 +235,7 @@ Analiza TODOS los fondos sin análisis (tanto los que insertó el Frontend como 
    {
      "contents": [{
        "parts": [{
-         "text": "Analiza este fondo de inversión y proporciona un análisis detallado:\n\nNombre: {{$json.nombre_fondo}}\nGestor: {{$json.gestor}}\nMonto: {{$json.monto_disponible}}\nDescripción: {{$json.descripcion}}\n\nProporciona:\n1. Análisis de idoneidad\n2. Puntos fuertes\n3. Riesgos\n4. Puntuación de compatibilidad (0-100)"
+         "text": "Analiza este fondo de inversión y proporciona un análisis detallado en formato JSON:\n\nNombre: {{$json.nombre_fondo}}\nGestor: {{$json.gestor_activos}}\nURL: {{$json.url_fuente}}\nDescripción: {{$json.evidencia_texto}}\n\nResponde ÚNICAMENTE con un objeto JSON (sin markdown) con esta estructura:\n{\n  \"analisis_completo\": \"Análisis detallado de idoneidad del fondo\",\n  \"puntos_fuertes\": [\"punto 1\", \"punto 2\", \"punto 3\"],\n  \"riesgos\": [\"riesgo 1\", \"riesgo 2\"],\n  \"puntuacion_impacto\": \"Alto|Medio|Bajo\",\n  \"es_elegible\": \"Si|No|Requiere más información\",\n  \"resumen_requisitos\": [\"requisito 1\", \"requisito 2\"],\n  \"pasos_aplicacion\": [\"paso 1\", \"paso 2\", \"paso 3\"],\n  \"fechas_clave\": \"Información sobre deadlines o fechas importantes\",\n  \"contact_emails\": [\"email1@example.com\", \"email2@example.com\"],\n  \"link_directo_aplicacion\": \"URL directa para aplicar\"\n}\n\nIMPORTANTE:\n- puntuacion_impacto debe ser \"Alto\", \"Medio\" o \"Bajo\"\n- es_elegible debe indicar si el fondo es elegible para el usuario\n- Si no encuentras información para un campo, usa null o array vacío\n- Los emails deben ser válidos si los encuentras en la descripción o deducibles del gestor\n- El análisis debe ser completo y profesional"
        }]
      }],
      "generationConfig": {
@@ -237,17 +249,42 @@ Analiza TODOS los fondos sin análisis (tanto los que insertó el Frontend como 
 6. **Function: Parse Analysis**
    ```javascript
    const response = $input.all()[0].json;
-   const analysisText = response.candidates[0].content.parts[0].text;
+   let analysisText = response.candidates[0].content.parts[0].text;
    const fundData = $node["Loop Funds"].json;
    
-   // Extraer score del análisis (buscar patrón 0-100)
-   const scoreMatch = analysisText.match(/(\d+)\/100|puntuación[:\s]+(\d+)/i);
-   const matchScore = scoreMatch ? parseInt(scoreMatch[1] || scoreMatch[2]) : 50;
+   // Limpiar markdown si viene con ```json
+   analysisText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+   
+   let parsedData;
+   try {
+     parsedData = JSON.parse(analysisText);
+   } catch (error) {
+     // Si falla el parsing, crear estructura mínima
+     console.error('Error parsing JSON:', error);
+     parsedData = {
+       analisis_completo: analysisText,
+       puntuacion_impacto: 'Medio',
+       es_elegible: null,
+       puntos_fuertes: [],
+       riesgos: [],
+       resumen_requisitos: [],
+       pasos_aplicacion: [],
+       fechas_clave: null,
+       contact_emails: [],
+       link_directo_aplicacion: fundData.url_fuente
+     };
+   }
    
    return {
      fundId: fundData.id,
-     analysis: analysisText,
-     matchScore: matchScore
+     evidenciaTexto: parsedData.analisis_completo || analysisText,
+     puntuacionImpacto: parsedData.puntuacion_impacto || 'Medio',
+     esElegible: parsedData.es_elegible || null,
+     resumenRequisitos: parsedData.resumen_requisitos || [],
+     pasosAplicacion: parsedData.pasos_aplicacion || [],
+     fechasClave: parsedData.fechas_clave || null,
+     contactEmails: parsedData.contact_emails || [],
+     linkDirectoAplicacion: parsedData.link_directo_aplicacion || fundData.url_fuente
    };
    ```
 
@@ -259,8 +296,14 @@ Analiza TODOS los fondos sin análisis (tanto los que insertó el Frontend como 
       Authorization: Bearer {{SUPABASE_SERVICE_KEY}}
     Body:
     {
-      "analisis_gemini": "{{$json.analysis}}",
-      "match_score": {{$json.matchScore}},
+      "evidencia_texto": "{{$json.evidenciaTexto}}",
+      "puntuacion_impacto": "{{$json.puntuacionImpacto}}",
+      "es_elegible": "{{$json.esElegible}}",
+      "resumen_requisitos": {{JSON.stringify($json.resumenRequisitos)}},
+      "pasos_aplicacion": {{JSON.stringify($json.pasosAplicacion)}},
+      "fechas_clave": "{{$json.fechasClave}}",
+      "contact_emails": {{JSON.stringify($json.contactEmails)}},
+      "link_directo_aplicacion": "{{$json.linkDirectoAplicacion}}",
       "analyzed_at": "{{$now}}"
     }
     ```
@@ -288,6 +331,66 @@ Analiza TODOS los fondos sin análisis (tanto los que insertó el Frontend como 
 2. UPSERT evita duplicados (constraint unique en user_id + nombre_fondo)
 3. Gemini API requiere parsing cuidadoso de las respuestas
 4. Workflow puede tardar 2-5 minutos por usuario
+
+## 🎯 Análisis Automático Completo
+
+El Workflow 2 ahora extrae información estructurada de cada fondo:
+
+### Información Extraída
+
+| Campo | Descripción | Tipo |
+|-------|-------------|------|
+| `evidencia_texto` | Análisis detallado de idoneidad | TEXT |
+| `puntuacion_impacto` | Nivel de impacto (Alto/Medio/Bajo) | TEXT |
+| `es_elegible` | Si el fondo es elegible para el usuario | TEXT |
+| `resumen_requisitos` | Lista de requisitos del fondo | TEXT[] |
+| `pasos_aplicacion` | Pasos del proceso de aplicación | TEXT[] |
+| `fechas_clave` | Deadlines e información temporal | TEXT |
+| `contact_emails` | Emails de contacto del gestor | TEXT[] |
+| `link_directo_aplicacion` | URL directa para aplicar | TEXT |
+
+### Ventajas del Análisis Estructurado
+
+✅ **Perfil Completo**: Toda la información necesaria para aplicar al fondo  
+✅ **Contacto Directo**: Emails extraídos o deducidos del gestor  
+✅ **Proceso Claro**: Pasos específicos para la aplicación  
+✅ **Requisitos**: Lista clara de lo que necesita el emprendedor  
+✅ **Fechas Importantes**: Deadlines para no perder oportunidades  
+
+### Formato de Respuesta Gemini
+
+Gemini devuelve JSON estructurado:
+```json
+{
+  "analisis_completo": "Este fondo es ideal para startups en fase seed...",
+  "puntos_fuertes": [
+    "Red de mentores amplia",
+    "Proceso rápido (3-4 semanas)",
+    "No requiere colateral"
+  ],
+  "riesgos": [
+    "Alta competitividad",
+    "Requiere traction demostrable"
+  ],
+  "puntuacion_impacto": "Alto",
+  "es_elegible": "Si - cumple con todos los requisitos",
+  "resumen_requisitos": [
+    "Startup tecnológica",
+    "Revenue > $50K MRR",
+    "Equipo fundador completo"
+  ],
+  "pasos_aplicacion": [
+    "1. Registrarse en el portal",
+    "2. Completar formulario de aplicación",
+    "3. Subir pitch deck y financials",
+    "4. Entrevista inicial (15 min)",
+    "5. Due diligence (2-3 semanas)"
+  ],
+  "fechas_clave": "Ronda Q2 2026: Aplicaciones hasta 30 de marzo",
+  "contact_emails": ["info@fundmanager.com", "applications@fund.vc"],
+  "link_directo_aplicacion": "https://fundmanager.com/apply"
+}
+```
 
 ## 🚀 Siguiente Paso
 
