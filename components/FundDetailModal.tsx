@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Fund, HistoryEntry } from '../types';
 import { getFundEmails } from '../services/supabaseService';
 
@@ -22,6 +22,71 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   const [emails, setEmails] = useState<EmailTracking[]>([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
   const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
+
+  const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
+
+  const normalizeHistory = (historyData: unknown): HistoryEntry[] => {
+    if (!historyData) return [];
+
+    const parseArrayEntry = (value: unknown, fallbackLabel: string): HistoryEntry | null => {
+      if (!Array.isArray(value) || value.length === 0) {
+        return null;
+      }
+
+      const rawDate = value[value.length - 1];
+      const hasDate = typeof rawDate === 'string' && isValidDate(rawDate);
+      const payload = hasDate ? value.slice(0, -1) : value;
+
+      const textParts = payload
+        .map((item) => (typeof item === 'string' ? item.trim() : String(item ?? '').trim()))
+        .filter(Boolean);
+
+      const primaryText = textParts[0] || fallbackLabel;
+      const extraText = textParts.slice(1).join(' · ');
+
+      return {
+        type: 'note',
+        date: hasDate ? rawDate : new Date().toISOString(),
+        description: primaryText,
+        details: extraText ? { notes: extraText } : undefined,
+      };
+    };
+
+    if (Array.isArray(historyData)) {
+      return historyData
+        .map((entry, index) => {
+          if (Array.isArray(entry)) {
+            return parseArrayEntry(entry, `Entrada ${index + 1}`);
+          }
+
+          if (entry && typeof entry === 'object' && 'date' in entry && 'description' in entry) {
+            const typedEntry = entry as HistoryEntry;
+            return {
+              ...typedEntry,
+              type: typedEntry.type || 'note',
+              date: typedEntry.date,
+              description: typedEntry.description,
+            };
+          }
+
+          return null;
+        })
+        .filter((entry): entry is HistoryEntry => entry !== null);
+    }
+
+    if (historyData && typeof historyData === 'object') {
+      return Object.entries(historyData as Record<string, unknown>)
+        .map(([label, value]) => parseArrayEntry(value, label))
+        .filter((entry): entry is HistoryEntry => entry !== null);
+    }
+
+    return [];
+  };
+
+  const normalizedHistory = useMemo(() => {
+    const entries = normalizeHistory(fund.history as unknown);
+    return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [fund.history]);
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -163,9 +228,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             }`}
           >
             Historial
-            {fund.history && fund.history.length > 0 && (
+            {normalizedHistory.length > 0 && (
               <span className="ml-2 bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {fund.history.length}
+                {normalizedHistory.length}
               </span>
             )}
           </button>
@@ -434,8 +499,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
           {activeTab === 'history' && (
             <div className="space-y-4">
-              {fund.history && fund.history.length > 0 ? (
-                fund.history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry, index) => (
+              {normalizedHistory.length > 0 ? (
+                normalizedHistory.map((entry, index) => (
                   <div key={index} className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -478,6 +543,13 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                           <div className="bg-red-900/50 p-2 rounded-lg">
                             <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.type !== 'email_sent' && entry.type !== 'email_received' && entry.type !== 'form_filled' && entry.type !== 'note' && entry.type !== 'call' && entry.type !== 'meeting' && (
+                          <div className="bg-gray-700 p-2 rounded-lg">
+                            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                           </div>
                         )}

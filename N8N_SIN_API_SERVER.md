@@ -101,10 +101,24 @@ GOOGLE_CSE_ID = your-cse-id
    }
    ```
 
-5. **Function: Build Search Query**
+5. **Supabase: Get Existing Funds**
+   ```
+   GET {{SUPABASE_URL}}/rest/v1/funds?user_id=eq.{{$json.user_id}}&select=nombre_fondo
+   Headers:
+     apikey: {{SUPABASE_ANON_KEY}}
+     Authorization: Bearer {{SUPABASE_SERVICE_KEY}}
+   ```
+   - Obtiene solo los nombres de los fondos existentes del usuario
+
+6. **Function: Build Search Query**
    ```javascript
-   // Construir query para Gemini
-   const user = $input.all()[0].json;
+   // Construir query con lista de fondos existentes
+   const user = $node["Supabase: Create Job"].json;
+   const existingFunds = $node["Supabase: Get Existing Funds"].json;
+   
+   // Crear lista de nombres de fondos existentes
+   const existingFundNames = existingFunds.map(f => f.nombre_fondo);
+   
    const searchQuery = `
    Encuentra fondos de inversión para:
    Industria: ${user.industry}
@@ -114,64 +128,95 @@ GOOGLE_CSE_ID = your-cse-id
    
    return {
      query: searchQuery,
-     jobId: user.job_id,
+     existingFunds: existingFundNames,
+     jobId: user.id,
      userId: user.user_id
    };
    ```
 
-6. **HTTP Request: Gemini AI Search**
+7. **AI Agent: Busqueda automatica de fondos**
+   **Prompt (usar como System + User):**
    ```
-   POST https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-   Headers:
-     Content-Type: application/json
-   Body:
-   {
-     "contents": [{
-       "parts": [{
-         "text": "{{$json.query}}"
-       }]
-     }],
-     "generationConfig": {
-       "temperature": 0.7
+   Eres un analista financiero. Encuentra fondos de inversion que coincidan con la consulta del usuario.
+
+   Reglas:
+   - Devuelve SOLO JSON valido. Sin Markdown, sin texto extra.
+   - Salida: un arreglo JSON de objetos (0..N).
+   - No inventes datos. Si falta informacion, usa "N/A" o null segun el campo.
+   - IMPORTANTE: NO incluyas fondos que ya existan en la lista de fondos existentes.
+   - Campos requeridos (no nulos) SOLO para busqueda:
+     - nombre_fondo (string)
+     - gestor_activos (string)
+     - ticker_isin (string, usa "N/A" si no hay)
+     - url_fuente (string, URL directa a la fuente)
+     - ods_encontrados (array string, puede ser [])
+     - keywords_encontradas (array string, puede ser [])
+     - evidencia_texto (string, breve evidencia o resumen)
+   - No incluyas campos de analisis (es_elegible, requisitos, pasos, fechas, links, contactos, estado).
+
+   Consulta del usuario:
+   {{$json.query}}
+
+   Fondos existentes (NO los incluyas en tu respuesta):
+   {{JSON.stringify($json.existingFunds)}}
+
+   Formato de salida (ejemplo):
+   [
+     {
+       "nombre_fondo": "Fondo Verde Latam",
+       "gestor_activos": "Gestora X",
+       "ticker_isin": "LU1234567890",
+       "url_fuente": "https://ejemplo.com/fondo",
+       "ods_encontrados": ["ODS 7", "ODS 13"],
+       "keywords_encontradas": ["energia renovable", "sostenibilidad"],
+       "evidencia_texto": "Invierte en energia solar y eolica en Latam."
      }
-   }
-   Query Params:
-     key: {{GEMINI_API_KEY}}
+   ]
    ```
 
-7. **Function: Parse Funds**
+8. **Function: Parse Funds**
    ```javascript
-   // Procesar respuesta de Gemini
-   const response = $input.all()[0].json;
-   const text = response.candidates[0].content.parts[0].text;
+  // Procesar respuesta del AI Agent (JSON en texto)
+  const response = $input.all()[0].json;
+  let text = response.text || response.output || response.data || '';
    
-   // Extraer fondos del texto
-   const funds = JSON.parse(text); // Gemini devuelve JSON
+   // Extraer fondos del texto (limpiar posibles bloques ```json)
+  text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const funds = JSON.parse(text); // AI Agent devuelve JSON
    const now = new Date().toISOString();
    
    return funds.map(fund => ({
      user_id: $node["Build Search Query"].json.userId,
-     nombre_fondo: fund.name,
-     gestor_activos: fund.manager,
-     ticker_isin: fund.ticker || 'N/A',
-     url_fuente: fund.url,
+     nombre_fondo: fund.nombre_fondo,
+     gestor_activos: fund.gestor_activos,
+     ticker_isin: fund.ticker_isin || 'N/A',
+     url_fuente: fund.url_fuente,
      fecha_scrapeo: now,
-     ods_encontrados: fund.ods || [],
-     keywords_encontradas: fund.keywords || [],
+     ods_encontrados: fund.ods_encontrados || [],
+     keywords_encontradas: fund.keywords_encontradas || [],
      puntuacion_impacto: 'Pendiente',
-     evidencia_texto: fund.description || '',
+     evidencia_texto: fund.evidencia_texto || '',
      es_elegible: null,
+     resumen_requisitos: null,
+     pasos_aplicacion: null,
+     fechas_clave: null,
+     link_directo_aplicacion: null,
+     contact_emails: null,
+     application_status: null,
      analyzed_at: null  // ⚠️ Sin análisis automático
    }));
    ```
+   ⚠️ **Nota:** El AI Agent ya filtró duplicados, todos los fondos en esta respuesta son NUEVOS
 
-8. **Supabase: INSERT Funds** (Loop - SIN análisis)
+9. **Loop Over Funds** (Split in Batches: 1)
+   - Separa cada fondo nuevo para insertarlo individualmente
+
+10. **Supabase: INSERT Fund**
    ```
    POST {{SUPABASE_URL}}/rest/v1/funds
    Headers:
      apikey: {{SUPABASE_ANON_KEY}}
      Authorization: Bearer {{SUPABASE_SERVICE_KEY}}
-     Prefer: resolution=merge-duplicates
    Body:
    {
      "user_id": "{{$json.user_id}}",
@@ -188,17 +233,39 @@ GOOGLE_CSE_ID = your-cse-id
    }
    ```
 
-9. **Supabase: Update Job Status**
+11. **Function: Aggregate Results**
+    ```javascript
+    // Contar fondos nuevos insertados
+    const insertedFunds = $node["Supabase: INSERT Fund"].json;
+    const jobId = $node["Build Search Query"].json.jobId;
+    
+    return {
+      jobId: jobId,
+      fundsFound: Array.isArray(insertedFunds) ? insertedFunds.length : 1
+    };
+    ```
+
+12. **Supabase: Update Job Status**
     ```
     PATCH {{SUPABASE_URL}}/rest/v1/search_jobs?id=eq.{{$json.jobId}}
+    Headers:
+      apikey: {{SUPABASE_ANON_KEY}}
+      Authorization: Bearer {{SUPABASE_SERVICE_KEY}}
     Body:
     {
       "status": "completed",
       "progress": 100,
-      "funds_found": {{$json.count}},
+      "funds_found": {{$json.fundsFound}},
       "completed_at": "{{$now}}"
     }
     ```
+
+### ✨ Ventajas del Filtrado Inteligente
+
+**✅ Eficiencia:** Una sola consulta inicial vs. N consultas individuales  
+**✅ Simplicidad:** El AI Agent filtra duplicados, sin lógica condicional compleja  
+**✅ Precisión:** El AI puede hacer matching inteligente de nombres similares  
+**✅ Menos nodos:** Menos pasos = menos puntos de falla
 
 ---
 
