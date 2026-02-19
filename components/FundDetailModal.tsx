@@ -52,35 +52,65 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
       };
     };
 
-    if (Array.isArray(historyData)) {
-      return historyData
-        .map((entry, index) => {
-          if (Array.isArray(entry)) {
-            return parseArrayEntry(entry, `Entrada ${index + 1}`);
+    const parseObjectEntry = (entry: Record<string, unknown>): HistoryEntry | null => {
+      if (!('date' in entry) || !('description' in entry)) {
+        return null;
+      }
+
+      const date = typeof entry.date === 'string' && isValidDate(entry.date)
+        ? entry.date
+        : new Date().toISOString();
+      const description = typeof entry.description === 'string'
+        ? entry.description
+        : String(entry.description ?? 'Entrada de historial');
+
+      return {
+        ...(entry as HistoryEntry),
+        type: (typeof entry.type === 'string' ? entry.type : 'note') as HistoryEntry['type'],
+        date,
+        description,
+      };
+    };
+
+    const flatten = (node: unknown, fallbackLabel: string): HistoryEntry[] => {
+      if (!node) return [];
+
+      if (typeof node === 'string') {
+        const trimmed = node.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return flatten(parsed, fallbackLabel);
+          } catch {
+            return [];
           }
+        }
+        return [];
+      }
 
-          if (entry && typeof entry === 'object' && 'date' in entry && 'description' in entry) {
-            const typedEntry = entry as HistoryEntry;
-            return {
-              ...typedEntry,
-              type: typedEntry.type || 'note',
-              date: typedEntry.date,
-              description: typedEntry.description,
-            };
-          }
+      if (Array.isArray(node)) {
+        const single = parseArrayEntry(node, fallbackLabel);
+        if (single) {
+          return [single];
+        }
 
-          return null;
-        })
-        .filter((entry): entry is HistoryEntry => entry !== null);
-    }
+        return node.flatMap((child, index) => flatten(child, `${fallbackLabel} ${index + 1}`.trim()));
+      }
 
-    if (historyData && typeof historyData === 'object') {
-      return Object.entries(historyData as Record<string, unknown>)
-        .map(([label, value]) => parseArrayEntry(value, label))
-        .filter((entry): entry is HistoryEntry => entry !== null);
-    }
+      if (node && typeof node === 'object') {
+        const asRecord = node as Record<string, unknown>;
+        const typedEntry = parseObjectEntry(asRecord);
+        if (typedEntry) {
+          return [typedEntry];
+        }
 
-    return [];
+        return Object.entries(asRecord).flatMap(([key, value]) => flatten(value, key));
+      }
+
+      return [];
+    };
+
+    return flatten(historyData, 'Entrada');
   };
 
   const normalizedHistory = useMemo(() => {
