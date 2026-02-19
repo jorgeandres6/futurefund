@@ -237,6 +237,26 @@ export const updateFundStatus = async (userId: string, fundName: string, status:
 };
 
 /**
+ * Get a single fund history from Supabase
+ */
+export const getFundHistory = async (userId: string, fundName: string): Promise<unknown | undefined> => {
+  try {
+    const { data, error } = await supabase
+      .from<'funds', FundsTable>('funds')
+      .select('history')
+      .eq('user_id', userId)
+      .eq('nombre_fondo', fundName)
+      .single();
+
+    if (error) throw error;
+    return (data as { history?: unknown } | null)?.history;
+  } catch (error) {
+    console.error('Error getting fund history:', error);
+    return undefined;
+  }
+};
+
+/**
  * Save or update fund analysis in Supabase
  */
 export const saveFundAnalysis = async (

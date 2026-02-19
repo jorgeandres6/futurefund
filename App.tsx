@@ -278,19 +278,33 @@ const App: React.FC = () => {
     const addFunds = async (newFunds: Fund[]) => {
       // Agregar fondos al estado (sin análisis automático)
       setFunds(prevFunds => {
-        // Create a map of existing funds statuses to preserve them
-        const existingStatusMap = new Map(prevFunds.map(f => [f.nombre_fondo.trim().toLowerCase(), f.applicationStatus]));
-        
-        const initializedNewFunds = newFunds.map(f => ({
-            ...f,
-            // Preserve existing status if found, otherwise leave undefined (will be loaded from DB)
-            applicationStatus: existingStatusMap.get(f.nombre_fondo.trim().toLowerCase())
-        }));
+        const existingFundsMap = new Map(
+          prevFunds.map((fund) => [fund.nombre_fondo.trim().toLowerCase(), fund])
+        );
 
-        const allFunds = [...prevFunds, ...initializedNewFunds];
-        // Usamos un Map para eliminar duplicados basados en el nombre del fondo (normalizado)
-        // Note: Since newFunds come last, they update the data but we preserved the status above
-        const uniqueResults = Array.from(new Map(allFunds.map(fund => [fund.nombre_fondo.trim().toLowerCase(), fund])).values());
+        const mergedNewFunds = newFunds.map((fund) => {
+          const key = fund.nombre_fondo.trim().toLowerCase();
+          const existing = existingFundsMap.get(key);
+
+          if (!existing) {
+            return fund;
+          }
+
+          return {
+            ...fund,
+            applicationStatus: existing.applicationStatus ?? fund.applicationStatus,
+            analisis_aplicacion: existing.analisis_aplicacion ?? fund.analisis_aplicacion,
+            history: existing.history ?? fund.history,
+            analyzed_at: existing.analyzed_at ?? fund.analyzed_at,
+            created_at: existing.created_at ?? fund.created_at,
+            updated_at: existing.updated_at ?? fund.updated_at,
+          };
+        });
+
+        const allFunds = [...prevFunds, ...mergedNewFunds];
+        const uniqueResults = Array.from(
+          new Map(allFunds.map((fund) => [fund.nombre_fondo.trim().toLowerCase(), fund])).values()
+        );
         return uniqueResults;
       });
     };

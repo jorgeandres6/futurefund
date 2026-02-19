@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Fund, HistoryEntry } from '../types';
-import { getFundEmails } from '../services/supabaseService';
+import { getFundEmails, getFundHistory } from '../services/supabaseService';
 
 interface EmailTracking {
   id: string;
@@ -20,6 +20,7 @@ interface FundDetailModalProps {
 
 const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose }) => {
   const [emails, setEmails] = useState<EmailTracking[]>([]);
+  const [dbHistory, setDbHistory] = useState<unknown>(undefined);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
   const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
 
@@ -114,9 +115,10 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   };
 
   const normalizedHistory = useMemo(() => {
-    const entries = normalizeHistory(fund.history as unknown);
+    const fundEntries = normalizeHistory(fund.history as unknown);
+    const entries = fundEntries.length > 0 ? fundEntries : normalizeHistory(dbHistory);
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [fund.history]);
+  }, [fund.history, dbHistory]);
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -132,6 +134,19 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     };
 
     loadEmails();
+  }, [userId, fund.nombre_fondo]);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const historyData = await getFundHistory(userId, fund.nombre_fondo);
+        setDbHistory(historyData);
+      } catch (error) {
+        console.error('Error loading fund history:', error);
+      }
+    };
+
+    loadHistory();
   }, [userId, fund.nombre_fondo]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
