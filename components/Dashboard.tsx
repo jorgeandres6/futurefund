@@ -17,6 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [searchText, setSearchText] = useState('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('nombre');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
 
   // Handle column sort
   const handleSort = (column: SortColumn) => {
@@ -74,6 +75,31 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
 
     return result;
   }, [funds, searchText, sortColumn, sortDirection]);
+
+  const groupedFunds = useMemo(() => {
+    const groups: Array<{ key: string; url: string; funds: Fund[] }> = [];
+    const groupIndexByKey = new Map<string, number>();
+
+    filteredAndSortedFunds.forEach((fund, index) => {
+      const normalizedUrl = fund.url_fuente?.trim().toLowerCase();
+      const groupKey = normalizedUrl || `sin-url-${index}`;
+
+      const existingGroupIndex = groupIndexByKey.get(groupKey);
+      if (existingGroupIndex !== undefined) {
+        groups[existingGroupIndex].funds.push(fund);
+        return;
+      }
+
+      groupIndexByKey.set(groupKey, groups.length);
+      groups.push({
+        key: groupKey,
+        url: fund.url_fuente,
+        funds: [fund],
+      });
+    });
+
+    return groups;
+  }, [filteredAndSortedFunds]);
 
   // Export to CSV function
   const exportToCSV = () => {
@@ -338,21 +364,49 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredAndSortedFunds.length === 0 ? (
+              {groupedFunds.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
                     {searchText ? 'No se encontraron fondos que coincidan con tu búsqueda.' : 'No hay fondos disponibles.'}
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedFunds.map((fund, index) => (
+                groupedFunds.map((group, index) => {
+                  const selectedSubfundIndex = selectedSubfundByGroup[group.key] ?? 0;
+                  const fund = group.funds[selectedSubfundIndex] || group.funds[0];
+
+                  return (
                   <tr 
-                    key={`${fund.ticker_isin}-${index}`} 
+                    key={`${group.key}-${index}`} 
                     className="hover:bg-gray-700/30 transition-colors cursor-pointer"
                     onClick={() => setSelectedFund(fund)}
                   >
-                    <td className="px-6 py-4 text-gray-200 font-medium whitespace-nowrap">
-                      {fund.nombre_fondo}
+                    <td className="px-6 py-4 text-gray-200 font-medium">
+                      {group.funds.length > 1 ? (
+                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={selectedSubfundIndex}
+                            onChange={(e) =>
+                              setSelectedSubfundByGroup((prev) => ({
+                                ...prev,
+                                [group.key]: Number(e.target.value),
+                              }))
+                            }
+                            className="bg-gray-700 text-gray-200 border border-gray-600 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
+                          >
+                            {group.funds.map((subfund, subIndex) => (
+                              <option key={`${subfund.ticker_isin}-${subIndex}`} value={subIndex}>
+                                {subfund.nombre_fondo} {subfund.ticker_isin ? `(${subfund.ticker_isin})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-400">
+                            {group.funds.length} subcategorías agrupadas por la misma URL
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="whitespace-nowrap">{fund.nombre_fondo}</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
                       {(() => {
@@ -391,7 +445,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       {fund.alineacion_detectada.ods_encontrados.map(ods => ods.split(':')[0]).join(', ')}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
