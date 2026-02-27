@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Fund } from '../types';
 import FundDetailModal from './FundDetailModal';
 import DownloadIcon from './icons/DownloadIcon';
@@ -18,7 +18,9 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>('nombre');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedFundTypes, setSelectedFundTypes] = useState<string[]>([]);
+  const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
+  const typeFilterRef = useRef<HTMLDivElement | null>(null);
 
   const getFundTypeValue = (fund: Fund): string => {
     const type = fund.ticker_isin?.trim();
@@ -28,6 +30,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const availableFundTypes = useMemo(() => {
     return Array.from(new Set(funds.map(getFundTypeValue))).sort((a, b) => a.localeCompare(b));
   }, [funds]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (typeFilterRef.current && !typeFilterRef.current.contains(event.target as Node)) {
+        setIsTypeFilterOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Handle column sort
   const handleSort = (column: SortColumn) => {
@@ -295,24 +308,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-200">Resumen Ejecutivo de Fondos</h3>
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <select
-                  multiple
-                  value={selectedFundTypes}
-                  onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions, option => option.value);
-                    setSelectedFundTypes(values);
-                  }}
-                  className="bg-gray-700 text-gray-200 border border-gray-600 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 h-24"
-                  title="Filtrar por Tipo de Fondo"
-                >
-                  {availableFundTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <button
                 onClick={exportToCSV}
                 className="flex items-center bg-green-900/30 border border-green-800 hover:bg-green-800/50 text-green-200 font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm"
@@ -364,12 +359,63 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
                   onClick={() => handleSort('tipo')}
                 >
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center space-x-2 relative" ref={typeFilterRef}>
                     <span>Tipo de Fondo</span>
                     {sortColumn === 'tipo' && (
                       <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsTypeFilterOpen((prev) => !prev);
+                      }}
+                      className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-gray-700"
+                      title="Filtrar Tipo de Fondo"
+                    >
+                      <svg className={`h-3.5 w-3.5 ${selectedFundTypes.length > 0 ? 'text-blue-400' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 01.8 1.6L12 9.75V15a1 1 0 01-1.447.894l-2-1A1 1 0 018 14v-4.25L3.2 3.6A1 1 0 013 3z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+
+                    {isTypeFilterOpen && (
+                      <div
+                        className="absolute top-full right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-3 z-20"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-300">Filtrar por tipo</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFundTypes([])}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            Limpiar
+                          </button>
+                        </div>
+                        <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                          {availableFundTypes.map((type) => {
+                            const checked = selectedFundTypes.includes(type);
+                            return (
+                              <label key={type} className="flex items-center gap-2 text-xs text-gray-200 py-1 px-1 rounded hover:bg-gray-700/50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedFundTypes((prev) =>
+                                      checked ? prev.filter((item) => item !== type) : [...prev, type]
+                                    );
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                                />
+                                <span className="truncate">{type}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </th>
