@@ -325,6 +325,14 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 </th>
                 <th 
                   scope="col" 
+                  className="px-6 py-4 font-semibold"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Tipo de Fondo</span>
+                  </div>
+                </th>
+                <th 
+                  scope="col" 
                   className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
                   onClick={() => handleSort('fecha')}
                 >
@@ -398,7 +406,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
             <tbody className="divide-y divide-gray-700">
               {groupedFunds.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
                     {searchText ? 'No se encontraron fondos que coincidan con tu búsqueda.' : 'No hay fondos disponibles.'}
                   </td>
                 </tr>
@@ -439,6 +447,9 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       ) : (
                         <span className="whitespace-nowrap">{fund.nombre_fondo}</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
+                      {fund.ticker_isin || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
                       {(() => {
