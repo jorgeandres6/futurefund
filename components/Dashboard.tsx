@@ -76,13 +76,45 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return result;
   }, [funds, searchText, sortColumn, sortDirection]);
 
+  const getMainDomain = (url: string, fallbackIndex: number): string => {
+    if (!url) return `sin-dominio-${fallbackIndex}`;
+
+    const normalizedInput = url.trim().toLowerCase();
+    if (!normalizedInput) return `sin-dominio-${fallbackIndex}`;
+
+    try {
+      const urlWithProtocol = /^https?:\/\//.test(normalizedInput)
+        ? normalizedInput
+        : `https://${normalizedInput}`;
+
+      const hostname = new URL(urlWithProtocol).hostname.replace(/^www\d*\./, '');
+      const parts = hostname.split('.').filter(Boolean);
+
+      if (parts.length <= 2) return hostname;
+
+      const lastTwo = parts.slice(-2).join('.');
+      const knownSecondLevelTlds = new Set([
+        'co.uk', 'org.uk', 'gov.uk',
+        'com.au', 'net.au', 'org.au',
+        'com.br', 'com.mx', 'com.ar', 'com.co', 'com.pe', 'com.ec'
+      ]);
+
+      if (knownSecondLevelTlds.has(lastTwo) && parts.length >= 3) {
+        return parts.slice(-3).join('.');
+      }
+
+      return lastTwo;
+    } catch {
+      return normalizedInput.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\d*\./, '') || `sin-dominio-${fallbackIndex}`;
+    }
+  };
+
   const groupedFunds = useMemo(() => {
     const groups: Array<{ key: string; url: string; funds: Fund[] }> = [];
     const groupIndexByKey = new Map<string, number>();
 
     filteredAndSortedFunds.forEach((fund, index) => {
-      const normalizedUrl = fund.url_fuente?.trim().toLowerCase();
-      const groupKey = normalizedUrl || `sin-url-${index}`;
+      const groupKey = getMainDomain(fund.url_fuente, index);
 
       const existingGroupIndex = groupIndexByKey.get(groupKey);
       if (existingGroupIndex !== undefined) {
