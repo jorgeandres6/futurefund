@@ -9,7 +9,7 @@ interface DashboardProps {
   userId: string;
 }
 
-type SortColumn = 'nombre' | 'gestor' | 'estado' | 'impacto' | 'ods' | 'fecha';
+type SortColumn = 'nombre' | 'tipo' | 'gestor' | 'estado' | 'impacto' | 'ods' | 'fecha';
 type SortDirection = 'asc' | 'desc';
 
 const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
@@ -17,7 +17,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [searchText, setSearchText] = useState('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('nombre');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [selectedFundTypes, setSelectedFundTypes] = useState<string[]>([]);
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
+
+  const getFundTypeValue = (fund: Fund): string => {
+    const type = fund.ticker_isin?.trim();
+    return type ? type : 'N/A';
+  };
+
+  const availableFundTypes = useMemo(() => {
+    return Array.from(new Set(funds.map(getFundTypeValue))).sort((a, b) => a.localeCompare(b));
+  }, [funds]);
 
   // Handle column sort
   const handleSort = (column: SortColumn) => {
@@ -36,6 +46,10 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
       fund.nombre_fondo.toLowerCase().includes(searchText.toLowerCase())
     );
 
+    if (selectedFundTypes.length > 0) {
+      result = result.filter((fund) => selectedFundTypes.includes(getFundTypeValue(fund)));
+    }
+
     // Then, sort by selected column
     result.sort((a, b) => {
       let aValue: string | number = '';
@@ -45,6 +59,10 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
         case 'nombre':
           aValue = a.nombre_fondo.toLowerCase();
           bValue = b.nombre_fondo.toLowerCase();
+          break;
+        case 'tipo':
+          aValue = getFundTypeValue(a).toLowerCase();
+          bValue = getFundTypeValue(b).toLowerCase();
           break;
         case 'gestor':
           aValue = a.gestor_activos.toLowerCase();
@@ -74,7 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     });
 
     return result;
-  }, [funds, searchText, sortColumn, sortDirection]);
+  }, [funds, searchText, selectedFundTypes, sortColumn, sortDirection]);
 
   const getMainDomain = (url: string, fallbackIndex: number): string => {
     if (!url) return `sin-dominio-${fallbackIndex}`;
@@ -277,6 +295,24 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-200">Resumen Ejecutivo de Fondos</h3>
             <div className="flex items-center gap-3">
+              <div className="relative">
+                <select
+                  multiple
+                  value={selectedFundTypes}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions, option => option.value);
+                    setSelectedFundTypes(values);
+                  }}
+                  className="bg-gray-700 text-gray-200 border border-gray-600 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 h-24"
+                  title="Filtrar por Tipo de Fondo"
+                >
+                  {availableFundTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={exportToCSV}
                 className="flex items-center bg-green-900/30 border border-green-800 hover:bg-green-800/50 text-green-200 font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm"
@@ -325,10 +361,16 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 </th>
                 <th 
                   scope="col" 
-                  className="px-6 py-4 font-semibold"
+                  className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
+                  onClick={() => handleSort('tipo')}
                 >
                   <div className="flex items-center space-x-1">
                     <span>Tipo de Fondo</span>
+                    {sortColumn === 'tipo' && (
+                      <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
                   </div>
                 </th>
                 <th 
@@ -449,7 +491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
-                      {fund.ticker_isin || 'N/A'}
+                      {getFundTypeValue(fund)}
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
                       {(() => {
