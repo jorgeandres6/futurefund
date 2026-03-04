@@ -316,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[800px] overflow-y-auto">
+        <div className="max-h-[800px] overflow-y-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-gray-900 text-gray-400 uppercase tracking-wider text-xs sticky top-0 z-10 shadow-md">
               <tr>
@@ -520,7 +520,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                             className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
                             style={getCompatibilityStyles(compatibilityScore)}
                           >
-                            {compatibilityScore}
+                            {compatibilityScore}%
                           </span>
                         );
                       })()}

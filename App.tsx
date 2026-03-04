@@ -474,7 +474,7 @@ const App: React.FC = () => {
          </div>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto">
+      <div className={`w-full mx-auto ${activeTab === 'dashboard' ? 'max-w-[95rem]' : 'max-w-6xl'}`}>
         <header className="text-center mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-200 to-white">
             FutureFund
