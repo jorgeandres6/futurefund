@@ -27,6 +27,31 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return type ? type : 'N/A';
   };
 
+  const getCompatibilityScore = (value: string | number): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(100, Math.round(value)));
+    }
+
+    const match = String(value ?? '').match(/\d+(\.\d+)?/);
+    if (!match) return 0;
+
+    const parsed = Number.parseFloat(match[0]);
+    if (!Number.isFinite(parsed)) return 0;
+
+    return Math.max(0, Math.min(100, Math.round(parsed)));
+  };
+
+  const getCompatibilityStyles = (score: number): React.CSSProperties => {
+    const safeScore = Math.max(0, Math.min(100, score));
+    const hue = (safeScore / 100) * 120;
+
+    return {
+      backgroundColor: `hsla(${hue}, 80%, 45%, 0.22)`,
+      borderColor: `hsl(${hue}, 80%, 45%)`,
+      color: `hsl(${hue}, 95%, 78%)`
+    };
+  };
+
   const availableFundTypes = useMemo(() => {
     return Array.from(new Set(funds.map(getFundTypeValue))).sort((a, b) => a.localeCompare(b));
   }, [funds]);
@@ -86,8 +111,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           bValue = b.applicationStatus || '';
           break;
         case 'impacto':
-          aValue = a.alineacion_detectada.puntuacion_impacto.toLowerCase();
-          bValue = b.alineacion_detectada.puntuacion_impacto.toLowerCase();
+          aValue = getCompatibilityScore(a.alineacion_detectada.puntuacion_impacto);
+          bValue = getCompatibilityScore(b.alineacion_detectada.puntuacion_impacto);
           break;
         case 'ods':
           aValue = a.alineacion_detectada.ods_encontrados.length;
@@ -391,20 +416,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 <th 
                   scope="col" 
                   className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
-                  onClick={() => handleSort('gestor')}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Gestor / Sponsor</span>
-                    {sortColumn === 'gestor' && (
-                      <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
                   onClick={() => handleSort('estado')}
                 >
                   <div className="flex items-center space-x-1">
@@ -422,22 +433,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   onClick={() => handleSort('impacto')}
                 >
                   <div className="flex items-center space-x-1">
-                    <span>Puntuación Impacto</span>
+                    <span>Compatibilidad</span>
                     {sortColumn === 'impacto' && (
-                      <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
-                  onClick={() => handleSort('ods')}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>ODS Detectados</span>
-                    {sortColumn === 'ods' && (
                       <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
@@ -449,7 +446,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
             <tbody className="divide-y divide-gray-700">
               {groupedFunds.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
                     {searchText ? 'No se encontraron fondos que coincidan con tu búsqueda.' : 'No hay fondos disponibles.'}
                   </td>
                 </tr>
@@ -504,9 +501,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                         });
                       })()}
                     </td>
-                    <td className="px-6 py-4 text-gray-300">
-                      {fund.gestor_activos}
-                    </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
                           !fund.applicationStatus
@@ -519,16 +513,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          fund.alineacion_detectada.puntuacion_impacto.toLowerCase().includes('alta') || fund.alineacion_detectada.puntuacion_impacto.toLowerCase().includes('muy alta')
-                          ? 'bg-green-900/50 text-green-300 border border-green-800'
-                          : 'bg-yellow-900/50 text-yellow-300 border border-yellow-800'
-                       }`}>
-                          {fund.alineacion_detectada.puntuacion_impacto.split('.')[0]}
-                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-400 max-w-xs truncate">
-                      {fund.alineacion_detectada.ods_encontrados.map(ods => ods.split(':')[0]).join(', ')}
+                      {(() => {
+                        const compatibilityScore = getCompatibilityScore(fund.alineacion_detectada.puntuacion_impacto);
+                        return (
+                          <span
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
+                            style={getCompatibilityStyles(compatibilityScore)}
+                          >
+                            {compatibilityScore}
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                   );
