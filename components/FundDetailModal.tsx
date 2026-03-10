@@ -23,7 +23,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   const [dbHistory, setDbHistory] = useState<unknown>(undefined);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
   const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
-  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(true);
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(false);
 
   const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
@@ -151,7 +151,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   }, [userId, fund.nombre_fondo]);
 
   useEffect(() => {
-    setIsEvidenceExpanded(true);
+    setIsEvidenceExpanded(false);
   }, [fund.nombre_fondo]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
