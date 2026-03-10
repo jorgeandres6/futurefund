@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from '../types';
 import SpinnerIcon from './icons/SpinnerIcon';
 import logo from '../logoff.png';
@@ -7,13 +7,24 @@ import { supabase } from '../services/supabaseClient';
 
 interface AuthScreenProps {
   onLogin: (user: User, isSignup?: boolean) => void;
+  forceRecoveryMode?: boolean;
+  onRecoveryHandled?: () => void;
 }
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({
+  onLogin,
+  forceRecoveryMode = false,
+  onRecoveryHandled
+}) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isRecoveryRequestMode, setIsRecoveryRequestMode] = useState(false);
+  const [isResetPasswordMode, setIsResetPasswordMode] = useState(forceRecoveryMode);
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -21,18 +32,107 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   });
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (forceRecoveryMode) {
+      setIsLoginMode(true);
+      setIsRecoveryRequestMode(false);
+      setIsResetPasswordMode(true);
+      setError('');
+      setSuccessMessage('Por seguridad, crea una nueva contraseña para tu cuenta.');
+      setShowPassword(false);
+      setFormData(prev => ({ ...prev, password: '' }));
+      setConfirmPassword('');
+    }
+  }, [forceRecoveryMode]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
     setError('');
+    setSuccessMessage('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
+
+    if (isRecoveryRequestMode) {
+      if (!formData.email) {
+        setError('Ingresa tu correo para enviarte el enlace de recuperación.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+          redirectTo
+        });
+
+        if (recoveryError) {
+          setError(recoveryError.message);
+          setIsLoading(false);
+          return;
+        }
+
+        setSuccessMessage('Te enviamos un enlace para restablecer tu contraseña. Revisa también la carpeta de spam.');
+        setIsLoading(false);
+      } catch (err: any) {
+        setError(err.message || 'No fue posible enviar el enlace de recuperación.');
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    if (isResetPasswordMode) {
+      if (!formData.password || !confirmPassword) {
+        setError('Completa ambos campos de contraseña.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (formData.password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (formData.password !== confirmPassword) {
+        setError('Las contraseñas no coinciden.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { error: updateError } = await supabase.auth.updateUser({ password: formData.password });
+
+        if (updateError) {
+          setError(updateError.message);
+          setIsLoading(false);
+          return;
+        }
+
+        await supabase.auth.signOut();
+        setSuccessMessage('Tu contraseña fue actualizada. Ahora puedes iniciar sesión con la nueva contraseña.');
+        setIsResetPasswordMode(false);
+        onRecoveryHandled?.();
+        setShowPassword(false);
+        setConfirmPassword('');
+        setFormData({ name: '', email: '', password: '' });
+        setIsLoading(false);
+
+        // Remove recovery params/hash from URL after completing reset.
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (err: any) {
+        setError(err.message || 'No fue posible actualizar tu contraseña.');
+        setIsLoading(false);
+      }
+      return;
+    }
 
     if (!formData.email || !formData.password) {
       setError('Por favor completa todos los campos requeridos.');
@@ -110,8 +210,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     setShowEmailConfirmation(false);
     setConfirmationEmail('');
     setIsLoginMode(true);
+    setShowPassword(false);
     setFormData({ name: '', email: '', password: '' });
     setError('');
+    setSuccessMessage('');
   };
 
   return (
@@ -202,14 +304,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               FutureFund
             </h1>
             <p className="text-gray-400 text-sm">
-              {isLoginMode 
+              {isResetPasswordMode
+                ? 'Crea una nueva contraseña para finalizar tu recuperación'
+                : isRecoveryRequestMode
+                ? 'Te enviaremos un enlace seguro para restablecer tu contraseña'
+                : isLoginMode 
                 ? 'Accede al buscador de fondos de inversión ODS/Reciclaje' 
                 : 'Únete a la plataforma de financiamiento sostenible'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLoginMode && (
+            {!isLoginMode && !isRecoveryRequestMode && !isResetPasswordMode && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Nombre Completo</label>
                 <input
@@ -230,22 +336,61 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
+                disabled={isResetPasswordMode}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="nombre@ejemplo.com"
               />
             </div>
 
+            {!isRecoveryRequestMode && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Contraseña</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 pr-24 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="••••••••"
+                />
+                {(isLoginMode || isResetPasswordMode) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                )}
+              </div>
             </div>
+            )}
+
+            {isResetPasswordMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Confirmar Contraseña</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError('');
+                    setSuccessMessage('');
+                  }}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="text-green-300 text-sm text-center bg-green-900/20 p-2 rounded border border-green-900/50">
+                {successMessage}
+              </div>
+            )}
 
             {error && (
               <div className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded border border-red-900/50">
@@ -261,11 +406,30 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               {isLoading ? (
                 <SpinnerIcon className="w-6 h-6 animate-spin" />
               ) : (
-                isLoginMode ? 'Iniciar Sesión' : 'Registrarse'
+                isResetPasswordMode ? 'Actualizar Contraseña' : isRecoveryRequestMode ? 'Enviar Enlace de Recuperación' : isLoginMode ? 'Iniciar Sesión' : 'Registrarse'
               )}
             </button>
           </form>
 
+          {isLoginMode && !isResetPasswordMode && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecoveryRequestMode(!isRecoveryRequestMode);
+                  setError('');
+                  setSuccessMessage('');
+                  setShowPassword(false);
+                  setFormData(prev => ({ ...prev, password: '' }));
+                }}
+                className="text-sm text-cyan-400 hover:text-cyan-300 underline transition-colors"
+              >
+                {isRecoveryRequestMode ? 'Volver a Iniciar Sesión' : '¿Olvidaste tu contraseña?'}
+              </button>
+            </div>
+          )}
+
+          {!isRecoveryRequestMode && !isResetPasswordMode && (
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">
               {isLoginMode ? "¿No tienes una cuenta? " : "¿Ya tienes una cuenta? "}
@@ -273,6 +437,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                 onClick={() => {
                   setIsLoginMode(!isLoginMode);
                   setError('');
+                  setSuccessMessage('');
+                  setShowPassword(false);
                   setFormData({ name: '', email: '', password: '' });
                 }}
                 className="text-blue-400 hover:text-blue-300 font-semibold underline transition-colors"
@@ -281,6 +447,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               </button>
             </p>
           </div>
+          )}
         </div>
       </div>
       

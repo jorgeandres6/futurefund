@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [areFundsLoaded, setAreFundsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true); // Loading initial session
+  const [forceRecoveryMode, setForceRecoveryMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'search' | 'dashboard' | 'profile'>('search');
@@ -44,9 +45,22 @@ const App: React.FC = () => {
 
   // Check for existing Supabase session on mount
   useEffect(() => {
+    const hasRecoveryParams = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+      return searchParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+    };
+
     const initializeSession = async () => {
       try {
+        const isRecoveryFlow = hasRecoveryParams();
+        setForceRecoveryMode(isRecoveryFlow);
+
         const { data: { session } } = await supabase.auth.getSession();
+
+        if (isRecoveryFlow) {
+          return;
+        }
         
         if (session?.user) {
           const userName = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuario';
@@ -85,7 +99,15 @@ const App: React.FC = () => {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setForceRecoveryMode(true);
+        setUser(null);
+        setUserId(null);
+        return;
+      }
+
       if (event === 'SIGNED_OUT') {
+        setForceRecoveryMode(false);
         setUser(null);
         setUserId(null);
         setFunds([]);
@@ -383,8 +405,14 @@ const App: React.FC = () => {
   }
 
   // If not authenticated, show Auth Screen
-  if (!user) {
-    return <AuthScreen onLogin={handleLogin} />;
+  if (!user || forceRecoveryMode) {
+    return (
+      <AuthScreen
+        onLogin={handleLogin}
+        forceRecoveryMode={forceRecoveryMode}
+        onRecoveryHandled={() => setForceRecoveryMode(false)}
+      />
+    );
   }
 
   // If creating profile (Loading Screen)
