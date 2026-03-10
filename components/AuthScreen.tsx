@@ -329,18 +329,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Correo Electrónico</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                disabled={isResetPasswordMode}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                placeholder="nombre@ejemplo.com"
-              />
-            </div>
+            {!isResetPasswordMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Correo Electrónico</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="nombre@ejemplo.com"
+                />
+              </div>
+            )}
 
             {!isRecoveryRequestMode && (
             <div>
