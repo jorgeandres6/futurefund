@@ -27,6 +27,55 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
   const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
+  const formatTextualEvidence = (value: unknown): string => {
+    if (value == null) return '';
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+
+      const isJsonLike =
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'));
+
+      if (isJsonLike) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return formatTextualEvidence(parsed);
+        } catch {
+          return value;
+        }
+      }
+
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      // If JSON comes as an array, attempt to extract any nested "analisis" value.
+      return value
+        .map((item) => formatTextualEvidence(item))
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const analysis = record.analisis;
+
+      if (typeof analysis === 'string') {
+        return analysis.trim();
+      }
+
+      if (analysis != null) {
+        return JSON.stringify(analysis, null, 2);
+      }
+
+      return '';
+    }
+
+    return String(value);
+  };
+
   const normalizeHistory = (historyData: unknown): HistoryEntry[] => {
     if (!historyData) return [];
 
@@ -120,6 +169,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     const entries = fundEntries.length > 0 ? fundEntries : normalizeHistory(dbHistory);
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [fund.history, dbHistory]);
+
+  const formattedEvidence = useMemo(
+    () => formatTextualEvidence((fund.evidencia_texto as unknown)),
+    [fund.evidencia_texto],
+  );
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -390,7 +444,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </button>
                 {isEvidenceExpanded && (
                   <p id="textual-evidence-content" className="text-gray-300 whitespace-pre-wrap leading-relaxed">
-                    {fund.evidencia_texto || 'No hay evidencia textual disponible'}
+                    {formattedEvidence || 'No hay evidencia textual disponible'}
                   </p>
                 )}
               </div>
