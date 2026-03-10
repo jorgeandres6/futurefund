@@ -502,7 +502,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       })()}
                     </td>
                     <td className="px-6 py-4 text-white text-xs font-bold">
-                      {fund.applicationStatus || 'Sin definir'}
+                      {fund.applicationStatus?.trim() || 'PENDIENTE DE APLICACION'}
                     </td>
                     <td className="px-6 py-4">
                       {(() => {

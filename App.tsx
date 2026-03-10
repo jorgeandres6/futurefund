@@ -508,7 +508,7 @@ const App: React.FC = () => {
             FutureFund
           </h1>
           <p className="mt-2 text-lg text-gray-400">
-            Plataforma de búsqueda de Fondos de Inversión ODS y Reciclaje
+            Plataforma de búsqueda y aplicación a Fondos
           </p>
         </header>
 
