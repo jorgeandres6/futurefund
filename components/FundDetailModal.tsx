@@ -23,6 +23,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   const [dbHistory, setDbHistory] = useState<unknown>(undefined);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
   const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(true);
 
   const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
@@ -149,6 +150,10 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     loadHistory();
   }, [userId, fund.nombre_fondo]);
 
+  useEffect(() => {
+    setIsEvidenceExpanded(true);
+  }, [fund.nombre_fondo]);
+
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -195,6 +200,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-white mb-2">{fund.nombre_fondo}</h2>
               <p className="text-gray-300 text-sm">{fund.gestor_activos}</p>
+              <p className="text-gray-400 text-xs mt-1">
+                Tipo de Fondo: <span className="text-gray-200 font-medium">{fund.ticker_isin?.trim() || 'N/A'}</span>
+              </p>
               <div className="flex gap-2 mt-3">
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                   fund.alineacion_detectada.puntuacion_impacto.toLowerCase().includes('alta') || 
@@ -358,15 +366,33 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
               {/* Evidence */}
               <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <button
+                  type="button"
+                  onClick={() => setIsEvidenceExpanded((prev) => !prev)}
+                  className="w-full flex items-center justify-between text-left mb-4"
+                  aria-expanded={isEvidenceExpanded}
+                  aria-controls="textual-evidence-content"
+                >
+                  <h3 className="text-lg font-semibold text-white flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Evidencia Textual
+                  </h3>
+                  <svg
+                    className={`w-5 h-5 text-gray-400 transition-transform ${isEvidenceExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
-                  Evidencia Textual
-                </h3>
-                <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
-                  {fund.evidencia_texto || 'No hay evidencia textual disponible'}
-                </p>
+                </button>
+                {isEvidenceExpanded && (
+                  <p id="textual-evidence-content" className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    {fund.evidencia_texto || 'No hay evidencia textual disponible'}
+                  </p>
+                )}
               </div>
             </div>
           )}
