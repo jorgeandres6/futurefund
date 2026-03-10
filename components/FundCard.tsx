@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Fund, ApplicationAnalysis, CompanyProfile } from '../types';
 import { analyzeFundApplication } from '../services/webReviewService';
 import { saveFundAnalysis } from '../services/supabaseService';
@@ -13,6 +13,54 @@ interface FundCardProps {
   onAnalysisComplete?: (fundName: string, analysis: ApplicationAnalysis) => void;
 }
 
+const formatTextualEvidence = (value: unknown): string => {
+  if (value == null) return '';
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+
+    const isJsonLike =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'));
+
+    if (isJsonLike) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return formatTextualEvidence(parsed);
+      } catch {
+        return value;
+      }
+    }
+
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatTextualEvidence(item))
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const analysis = record.analisis;
+
+    if (typeof analysis === 'string') {
+      return analysis.trim();
+    }
+
+    if (analysis != null) {
+      return JSON.stringify(analysis, null, 2);
+    }
+
+    return '';
+  }
+
+  return String(value);
+};
+
 const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatusUpdate, onAnalysisComplete }) => {
   const [analysis, setAnalysis] = useState<ApplicationAnalysis | null>(fund.analisis_aplicacion || null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -21,6 +69,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatus
   // Email sending states
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const formattedEvidence = useMemo(() => formatTextualEvidence(fund.evidencia_texto as unknown), [fund.evidencia_texto]);
 
   const handleAnalyzeClick = async () => {
     if (analysis) return; // Already analyzed
@@ -172,7 +221,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatus
 
       <div className="mb-4 flex-grow">
         <p className="text-sm text-gray-400 italic border-l-4 border-gray-600 pl-4 py-2 bg-gray-900/50 rounded-r-md">
-          "{fund.evidencia_texto}"
+          "{formattedEvidence || 'No hay evidencia textual disponible'}"
         </p>
       </div>
 
