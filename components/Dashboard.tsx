@@ -501,16 +501,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                         });
                       })()}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          !fund.applicationStatus
-                          ? 'bg-gray-700/50 text-gray-400 border border-gray-600'
-                          : fund.applicationStatus === 'PENDIENTE'
-                          ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700' 
-                          : 'bg-green-900/50 text-green-300 border border-green-700'
-                      }`}>
-                          {fund.applicationStatus || 'Sin definir'}
-                      </span>
+                    <td className="px-6 py-4 text-white text-xs font-bold">
+                      {fund.applicationStatus || 'Sin definir'}
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
