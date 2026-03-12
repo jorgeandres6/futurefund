@@ -183,7 +183,16 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
     if (!data) return [];
 
     // Convert database format to Fund
-    const funds: Fund[] = data.map((item: FundRow) => ({
+    const funds: Fund[] = data.map((item: FundRow) => {
+      const hasApplicationData =
+        Boolean(item.es_elegible) ||
+        (Array.isArray(item.resumen_requisitos) && item.resumen_requisitos.length > 0) ||
+        (Array.isArray(item.pasos_aplicacion) && item.pasos_aplicacion.length > 0) ||
+        Boolean(item.fechas_clave) ||
+        Boolean(item.link_directo_aplicacion) ||
+        (Array.isArray(item.contact_emails) && item.contact_emails.length > 0);
+
+      return ({
       nombre_fondo: item.nombre_fondo,
       gestor_activos: item.gestor_activos,
       ticker_isin: item.ticker_isin,
@@ -195,8 +204,8 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
         puntuacion_impacto: normalizeImpactScore(item.puntuacion_impacto),
       },
       evidencia_texto: item.evidencia_texto,
-        analisis_aplicacion: item.es_elegible ? {
-          es_elegible: item.es_elegible,
+      analisis_aplicacion: hasApplicationData ? {
+          es_elegible: item.es_elegible || '',
           resumen_requisitos: item.resumen_requisitos || [],
           pasos_aplicacion: item.pasos_aplicacion || [],
           fechas_clave: item.fechas_clave || '',
@@ -210,7 +219,8 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
       analyzed_at: item.analyzed_at || undefined,
       history: item.history as any || undefined,
       created_at: item.created_at,
-    }));
+      });
+    });
 
     return funds;
   } catch (error) {
