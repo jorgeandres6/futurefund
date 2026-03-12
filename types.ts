@@ -40,7 +40,7 @@ export interface Fund {
   alineacion_detectada: {
     ods_encontrados: string[];
     keywords_encontradas: string[];
-    puntuacion_impacto: string;
+    puntuacion_impacto: number;
   };
   evidencia_texto: string;
   analisis_aplicacion?: ApplicationAnalysis; // Optional field to store analysis

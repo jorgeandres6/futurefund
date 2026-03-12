@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS funds (
   fecha_scrapeo TEXT NOT NULL,
   ods_encontrados TEXT[] NOT NULL,
   keywords_encontradas TEXT[] NOT NULL,
-  puntuacion_impacto TEXT NOT NULL,
+  puntuacion_impacto INTEGER NOT NULL,
   evidencia_texto TEXT NOT NULL,
   es_elegible TEXT,
   resumen_requisitos TEXT[],

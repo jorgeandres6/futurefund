@@ -3,6 +3,7 @@
 
 import { supabase } from './supabaseClient';
 import { Fund, CompanyProfile } from '../types';
+import { normalizeImpactScore } from '../utils/impactScore';
 import { 
   discoverFinancingSources, 
   expandSearch, 
@@ -246,7 +247,7 @@ async function saveFundsToDatabase(userId: string, funds: Fund[]): Promise<void>
     fecha_scrapeo: fund.fecha_scrapeo,
     ods_encontrados: fund.alineacion_detectada.ods_encontrados,
     keywords_encontradas: fund.alineacion_detectada.keywords_encontradas,
-    puntuacion_impacto: fund.alineacion_detectada.puntuacion_impacto,
+    puntuacion_impacto: normalizeImpactScore(fund.alineacion_detectada.puntuacion_impacto),
     evidencia_texto: fund.evidencia_texto,
     es_elegible: fund.analisis_aplicacion?.es_elegible || null,
     resumen_requisitos: fund.analisis_aplicacion?.resumen_requisitos || null,

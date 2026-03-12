@@ -4,6 +4,7 @@ import { Fund, ApplicationAnalysis, CompanyProfile } from '../types';
 import { analyzeFundApplication } from '../services/webReviewService';
 import { saveFundAnalysis } from '../services/supabaseService';
 import SpinnerIcon from './icons/SpinnerIcon';
+import { formatImpactScore } from '../utils/impactScore';
 
 interface FundCardProps {
   fund: Fund;
@@ -243,7 +244,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund, userProfile, userId, onStatus
         </div>
         <div>
           <h4 className="font-semibold text-gray-300 mb-2">Puntuación de Impacto</h4>
-          <p className="text-gray-400">{fund.alineacion_detectada.puntuacion_impacto}</p>
+          <p className="text-gray-400">{formatImpactScore(fund.alineacion_detectada.puntuacion_impacto)}</p>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { Fund, CompanyProfile, FinancialMetrics } from '../types';
+import { normalizeImpactScore } from '../utils/impactScore';
 
 // Se inicializa el cliente de la API directamente con la variable de entorno.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -31,8 +32,8 @@ const fundSchema = {
           description: 'Lista de palabras clave encontradas (ej., "Filantropía", "Venture Capital", "Impact Investing").',
         },
         puntuacion_impacto: {
-          type: Type.STRING,
-          description: 'Descripción de la estrategia de inversión/donación basada en el texto encontrado.'
+          type: Type.NUMBER,
+          description: 'Puntuación de impacto como número entero entre 0 y 100.'
         },
       },
       required: ['ods_encontrados', 'keywords_encontradas', 'puntuacion_impacto'],
@@ -130,6 +131,13 @@ async function performCustomSearch(query: string, signal?: AbortSignal): Promise
  */
 async function processWithGemini(promptContext: string, isSearchBased: boolean, signal?: AbortSignal): Promise<Fund[]> {
   const maxRetries = 3;
+  const normalizeFund = (fund: Fund): Fund => ({
+    ...fund,
+    alineacion_detectada: {
+      ...fund.alineacion_detectada,
+      puntuacion_impacto: normalizeImpactScore(fund.alineacion_detectada?.puntuacion_impacto),
+    },
+  });
   
   // Si es basado en búsqueda, el prompt cambia ligeramente para enfocarse en extracción
   const baseInstruction = isSearchBased 
@@ -160,7 +168,7 @@ async function processWithGemini(promptContext: string, isSearchBased: boolean, 
       if (!jsonText) return [];
       
       const parsedData = JSON.parse(jsonText);
-      return Array.isArray(parsedData) ? (parsedData as Fund[]) : [];
+      return Array.isArray(parsedData) ? (parsedData as Fund[]).map(normalizeFund) : [];
 
     } catch (error: any) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -489,7 +497,7 @@ export const getDemoData = (): Fund[] => {
       alineacion_detectada: {
         ods_encontrados: ["ODS 13: Acción por el Clima", "ODS 5: Igualdad de Género", "ODS 10: Reducción de las Desigualdades"],
         keywords_encontradas: ["Catalytic Capital", "Climate Solutions", "Gender Equity", "Impact Investing"],
-        puntuacion_impacto: "Alta. Especializado 100% en inversión de impacto y soluciones climáticas complejas."
+        puntuacion_impacto: 95
       },
       evidencia_texto: "ImpactAssets es el principal DAF para inversores de impacto, permitiendo inversiones personalizadas en fondos privados de deuda y capital alineados con los ODS."
     },
@@ -502,7 +510,7 @@ export const getDemoData = (): Fund[] => {
       alineacion_detectada: {
         ods_encontrados: ["ODS 8: Trabajo Decente", "ODS 6: Agua Limpia", "ODS 12: Producción Responsable"],
         keywords_encontradas: ["Sustainable Pools", "ESG", "Public Markets", "Grantmaking"],
-        puntuacion_impacto: "Media-Alta. Ofrece pools de inversión ESG y facilita donaciones internacionales a través de intermediarios."
+        puntuacion_impacto: 75
       },
       evidencia_texto: "Ofrece opciones de inversión de impacto que consideran factores ambientales, sociales y de gobernanza (ESG) junto con rendimientos financieros."
     },
@@ -515,7 +523,7 @@ export const getDemoData = (): Fund[] => {
       alineacion_detectada: {
         ods_encontrados: ["ODS 2: Hambre Cero", "ODS 12: Economía Circular"],
         keywords_encontradas: ["Regenerative Economy", "Soil Health", "Fair Trade"],
-        puntuacion_impacto: "Muy Alta. Enfoque exclusivo en economía regenerativa, sistemas alimentarios y justicia ecológica."
+        puntuacion_impacto: 95
       },
       evidencia_texto: "Un DAF diseñado para donantes que desean activar su capital inmediatamente para apoyar empresas sociales y justicia ecológica."
     }

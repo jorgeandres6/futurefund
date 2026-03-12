@@ -98,7 +98,7 @@ export interface Database {
           fecha_scrapeo: string
           ods_encontrados: string[]
           keywords_encontradas: string[]
-          puntuacion_impacto: string
+          puntuacion_impacto: number
           evidencia_texto: string
           es_elegible: string | null
           resumen_requisitos: string[] | null
@@ -123,7 +123,7 @@ export interface Database {
           fecha_scrapeo: string
           ods_encontrados: string[]
           keywords_encontradas: string[]
-          puntuacion_impacto: string
+          puntuacion_impacto: number
           evidencia_texto: string
           es_elegible?: string | null
           resumen_requisitos?: string[] | null
@@ -147,7 +147,7 @@ export interface Database {
           fecha_scrapeo?: string
           ods_encontrados?: string[]
           keywords_encontradas?: string[]
-          puntuacion_impacto?: string
+          puntuacion_impacto?: number
           evidencia_texto?: string
           es_elegible?: string | null
           resumen_requisitos?: string[] | null

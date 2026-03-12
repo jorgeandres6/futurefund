@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Fund } from '../types';
 import FundDetailModal from './FundDetailModal';
 import DownloadIcon from './icons/DownloadIcon';
+import { formatImpactScore, normalizeImpactScore } from '../utils/impactScore';
 
 interface DashboardProps {
   funds: Fund[];
@@ -25,20 +26,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const getFundTypeValue = (fund: Fund): string => {
     const type = fund.ticker_isin?.trim();
     return type ? type : 'N/A';
-  };
-
-  const getCompatibilityScore = (value: string | number): number => {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return Math.max(0, Math.min(100, Math.round(value)));
-    }
-
-    const match = String(value ?? '').match(/\d+(\.\d+)?/);
-    if (!match) return 0;
-
-    const parsed = Number.parseFloat(match[0]);
-    if (!Number.isFinite(parsed)) return 0;
-
-    return Math.max(0, Math.min(100, Math.round(parsed)));
   };
 
   const getCompatibilityStyles = (score: number): React.CSSProperties => {
@@ -111,8 +98,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           bValue = b.applicationStatus || '';
           break;
         case 'impacto':
-          aValue = getCompatibilityScore(a.alineacion_detectada.puntuacion_impacto);
-          bValue = getCompatibilityScore(b.alineacion_detectada.puntuacion_impacto);
+          aValue = normalizeImpactScore(a.alineacion_detectada.puntuacion_impacto);
+          bValue = normalizeImpactScore(b.alineacion_detectada.puntuacion_impacto);
           break;
         case 'ods':
           aValue = a.alineacion_detectada.ods_encontrados.length;
@@ -506,13 +493,13 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const compatibilityScore = getCompatibilityScore(fund.alineacion_detectada.puntuacion_impacto);
+                        const compatibilityScore = normalizeImpactScore(fund.alineacion_detectada.puntuacion_impacto);
                         return (
                           <span
                             className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
                             style={getCompatibilityStyles(compatibilityScore)}
                           >
-                            {compatibilityScore}%
+                            {formatImpactScore(compatibilityScore)}
                           </span>
                         );
                       })()}

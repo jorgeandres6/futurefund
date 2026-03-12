@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Fund, HistoryEntry } from '../types';
 import { getFundEmails, getFundHistory } from '../services/supabaseService';
+import { formatImpactScore, getImpactScoreTier } from '../utils/impactScore';
 
 interface EmailTracking {
   id: string;
@@ -24,6 +25,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
   const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
   const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(false);
+  const impactScoreTier = getImpactScoreTier(fund.alineacion_detectada.puntuacion_impacto);
 
   const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
@@ -259,12 +261,13 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
               </p>
               <div className="flex gap-2 mt-3">
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  fund.alineacion_detectada.puntuacion_impacto.toLowerCase().includes('alta') || 
-                  fund.alineacion_detectada.puntuacion_impacto.toLowerCase().includes('muy alta')
+                  impactScoreTier === 'high'
                     ? 'bg-green-900/50 text-green-300 border border-green-700'
-                    : 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+                    : impactScoreTier === 'medium'
+                      ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+                      : 'bg-red-900/50 text-red-300 border border-red-700'
                 }`}>
-                  {fund.alineacion_detectada.puntuacion_impacto}
+                  {formatImpactScore(fund.alineacion_detectada.puntuacion_impacto)}
                 </span>
                 {fund.applicationStatus && (
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -288,7 +291,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             </button>
           </div>
         </div>
-
+            <p className="text-gray-400">{formatImpactScore(fund.alineacion_detectada.puntuacion_impacto)}</p>
         {/* Tabs */}
         <div className="flex border-b border-gray-700 bg-gray-800/50">
           <button

@@ -2,6 +2,7 @@
 // Wrapper around Gemini Service for the API server
 
 const { GoogleGenAI } = require('@google/genai');
+const { normalizeImpactScore } = require('./impactScore');
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const API_KEY = process.env.API_KEY;
@@ -53,7 +54,7 @@ Devuelve un array JSON con fondos encontrados, cada uno con:
 - ticker_isin: string
 - url_fuente: string
 - fecha_scrapeo: string (ISO)
-- alineacion_detectada: { ods_encontrados: string[], keywords_encontradas: string[], puntuacion_impacto: string }
+- alineacion_detectada: { ods_encontrados: string[], keywords_encontradas: string[], puntuacion_impacto: integer entre 0 y 100 }
 - evidencia_texto: string
 `;
 
@@ -61,7 +62,17 @@ Devuelve un array JSON con fondos encontrados, cada uno con:
   const text = result.response.text();
   
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+
+    return Array.isArray(parsed)
+      ? parsed.map(fund => ({
+          ...fund,
+          alineacion_detectada: {
+            ...fund.alineacion_detectada,
+            puntuacion_impacto: normalizeImpactScore(fund.alineacion_detectada?.puntuacion_impacto),
+          },
+        }))
+      : [];
   } catch (e) {
     console.error('Error parsing Gemini response:', e);
     return [];
