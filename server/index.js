@@ -14,7 +14,6 @@ app.use(express.json());
 
 // Import Supabase client
 const { createClient } = require('@supabase/supabase-js');
-const { normalizeImpactScore } = require('./impactScore');
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.VITE_SUPABASE_ANON_KEY
@@ -205,19 +204,6 @@ async function executeSearchJob(job) {
           try {
             const analysis = await analyzeFund(fund);
             if (analysis) {
-              await supabase
-                .from('funds')
-                .update({
-                  es_elegible: analysis.es_elegible,
-                  resumen_requisitos: analysis.resumen_requisitos,
-                  pasos_aplicacion: analysis.pasos_aplicacion,
-                  fechas_clave: analysis.fechas_clave,
-                  link_directo_aplicacion: analysis.link_directo_aplicacion,
-                  contact_emails: analysis.contact_emails
-                })
-                .eq('user_id', userId)
-                .eq('nombre_fondo', fund.nombre_fondo);
-
               analyzed++;
               await updateJob(jobId, { 
                 funds_analyzed: analyzed,
@@ -278,34 +264,10 @@ async function updateJob(jobId, updates) {
 
 // Helper: Save funds to database
 async function saveFunds(userId, funds) {
-  if (funds.length === 0) return;
-
-  const fundsData = funds.map(fund => ({
-    user_id: userId,
-    nombre_fondo: fund.nombre_fondo,
-    gestor_activos: fund.gestor_activos,
-    ticker_isin: fund.ticker_isin,
-    url_fuente: fund.url_fuente,
-    fecha_scrapeo: fund.fecha_scrapeo,
-    ods_encontrados: fund.alineacion_detectada.ods_encontrados,
-    keywords_encontradas: fund.alineacion_detectada.keywords_encontradas,
-    puntuacion_impacto: normalizeImpactScore(fund.alineacion_detectada.puntuacion_impacto),
-    evidencia_texto: fund.evidencia_texto,
-    es_elegible: fund.analisis_aplicacion?.es_elegible || null,
-    resumen_requisitos: fund.analisis_aplicacion?.resumen_requisitos || null,
-    pasos_aplicacion: fund.analisis_aplicacion?.pasos_aplicacion || null,
-    fechas_clave: fund.analisis_aplicacion?.fechas_clave || null,
-    link_directo_aplicacion: fund.analisis_aplicacion?.link_directo_aplicacion || null,
-    contact_emails: fund.analisis_aplicacion?.contact_emails || null,
-    ...(fund.applicationStatus ? { application_status: fund.applicationStatus } : {})
-  }));
-
-  await supabase
-    .from('funds')
-    .upsert(fundsData, {
-      onConflict: 'user_id,nombre_fondo',
-      ignoreDuplicates: false
-    });
+  console.warn('saveFunds is disabled because funds is read-only from the platform.', {
+    userId,
+    fundsCount: funds.length,
+  });
 }
 
 // Start server

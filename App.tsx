@@ -10,7 +10,7 @@ import {
   generateCompanyProfileSummary
 } from './services/geminiService';
 import { supabase } from './services/supabaseClient';
-import { saveProfile, loadProfile, saveFunds, loadFunds, updateFundStatus } from './services/supabaseService';
+import { saveProfile, loadProfile, loadFunds } from './services/supabaseService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -40,8 +40,6 @@ const App: React.FC = () => {
   
   // Ref for aborting search
   const abortControllerRef = useRef<AbortController | null>(null);
-  // Track last saved funds snapshot to avoid re-saving on initial load
-  const lastSavedFundsRef = useRef<string>('');
 
   // Check for existing Supabase session on mount
   useEffect(() => {
@@ -80,8 +78,6 @@ const App: React.FC = () => {
           // Load funds from Supabase
           const userFunds = await loadFunds(session.user.id);
           setFunds(userFunds);
-          lastSavedFundsRef.current = JSON.stringify(userFunds);
-          setAreFundsLoaded(true);
 
           // Show onboarding if no profile
           if (!profile) {
@@ -121,27 +117,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Persist funds to Supabase when they change
-  // Note: We use a ref to prevent unnecessary saves on every render
-  useEffect(() => {
-    const persistFunds = async () => {
-      if (userId && areFundsLoaded && funds.length > 0) {
-        // Only save if funds actually changed (deep comparison via JSON)
-        const currentFundsJSON = JSON.stringify(funds);
-        if (currentFundsJSON !== lastSavedFundsRef.current) {
-          try {
-            await saveFunds(userId, funds);
-            lastSavedFundsRef.current = currentFundsJSON;
-          } catch (error) {
-            console.error('Error persisting funds:', error);
-          }
-        }
-      }
-    };
-
-    persistFunds();
-  }, [funds, userId, areFundsLoaded]);
-
   const handleLogin = async (newUser: User, isSignup: boolean = false) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -162,8 +137,6 @@ const App: React.FC = () => {
         // Load funds from Supabase
         const userFunds = await loadFunds(session.user.id);
         setFunds(userFunds);
-        lastSavedFundsRef.current = JSON.stringify(userFunds);
-        setAreFundsLoaded(true);
 
         // Show onboarding if new signup or no profile
         if (isSignup || !profile) {
@@ -243,16 +216,7 @@ const App: React.FC = () => {
           : f
       )
     );
-
-    // Update in Supabase
-    if (userId) {
-      try {
-        await updateFundStatus(userId, fundName, newStatus);
-      } catch (error) {
-        console.error('Error updating fund status:', error);
-      }
-    }
-  }, [userId]);
+  }, []);
 
   const handleAnalysisComplete = useCallback((fundName: string, analysis: ApplicationAnalysis) => {
     // Update local state with the analysis data
