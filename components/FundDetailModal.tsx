@@ -29,6 +29,46 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
   const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
+  const toSafeString = (value: unknown): string => {
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '';
+  };
+
+  const stripHtmlTags = (html: string): string => {
+    if (!html) return '';
+    return html
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const sanitizeHtml = (html: string): string => {
+    if (!html) return '';
+
+    return html
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+      .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+      .replace(/javascript:/gi, '');
+  };
+
+  const mapHistoryType = (rawType: string): HistoryEntry['type'] => {
+    const normalized = rawType.toLowerCase();
+
+    if (normalized.includes('received') || normalized.includes('recib')) return 'email_received';
+    if (normalized.includes('sent') || normalized.includes('envi')) return 'email_sent';
+    if (normalized.includes('form')) return 'form_filled';
+    if (normalized.includes('call') || normalized.includes('llamada')) return 'call';
+    if (normalized.includes('meeting') || normalized.includes('reunion') || normalized.includes('reunión')) return 'meeting';
+
+    return 'note';
+  };
+
   const formatTextualEvidence = (value: unknown): string => {
     if (value == null) return '';
 
@@ -86,6 +126,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
         return null;
       }
 
+      const hasComplexValues = value.some((item) => typeof item === 'object' && item !== null);
+      if (hasComplexValues) {
+        return null;
+      }
+
       const rawDate = value[value.length - 1];
       const hasDate = typeof rawDate === 'string' && isValidDate(rawDate);
       const payload = hasDate ? value.slice(0, -1) : value;
@@ -106,6 +151,48 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     };
 
     const parseObjectEntry = (entry: Record<string, unknown>): HistoryEntry | null => {
+      const receptor =
+        toSafeString(entry.RECEPTOR) ||
+        toSafeString(entry.receptor) ||
+        toSafeString(entry.to) ||
+        toSafeString(entry.destinatario);
+      const emisor =
+        toSafeString(entry.EMISOR) ||
+        toSafeString(entry.emisor) ||
+        toSafeString(entry.from) ||
+        toSafeString(entry.remitente);
+      const tipoRaw =
+        toSafeString(entry.TIPO) ||
+        toSafeString(entry.tipo) ||
+        toSafeString(entry.type) ||
+        'note';
+      const fechaRaw =
+        toSafeString(entry.FECHA) ||
+        toSafeString(entry.fecha) ||
+        toSafeString(entry.date);
+      const contenidoRaw =
+        toSafeString(entry.CONTENIDO) ||
+        toSafeString(entry.contenido) ||
+        toSafeString(entry.body) ||
+        toSafeString(entry.email_body);
+
+      if (fechaRaw || contenidoRaw || receptor || emisor || tipoRaw !== 'note') {
+        const cleanHtml = sanitizeHtml(contenidoRaw);
+        const plainContent = stripHtmlTags(contenidoRaw);
+
+        return {
+          type: mapHistoryType(tipoRaw),
+          date: isValidDate(fechaRaw) ? fechaRaw : new Date().toISOString(),
+          description: tipoRaw || 'Interacción por correo',
+          details: {
+            from: emisor || undefined,
+            to: receptor || undefined,
+            body: plainContent || undefined,
+            body_html: cleanHtml || undefined,
+          },
+        };
+      }
+
       if (!('date' in entry) || !('description' in entry)) {
         return null;
       }
@@ -709,13 +796,20 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                             <span className="text-gray-300">{entry.details.subject}</span>
                           </div>
                         )}
-                        {entry.details.body && (
+                        {entry.details.body_html ? (
+                          <div className="mt-3 rounded border border-gray-700 bg-gray-950/50 p-3 overflow-x-auto">
+                            <div
+                              className="text-gray-300 text-sm leading-relaxed [&_a]:text-blue-400 [&_a]:underline"
+                              dangerouslySetInnerHTML={{ __html: String(entry.details.body_html) }}
+                            />
+                          </div>
+                        ) : entry.details.body ? (
                           <div className="mt-3">
                             <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
                               {entry.details.body}
                             </p>
                           </div>
-                        )}
+                        ) : null}
                         {entry.details.form_name && (
                           <div className="flex text-sm mb-2">
                             <span className="text-gray-400 w-24">Formulario:</span>
