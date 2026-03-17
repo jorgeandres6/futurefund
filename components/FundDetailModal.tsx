@@ -57,6 +57,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
       .replace(/javascript:/gi, '');
   };
 
+  const isHtmlContent = (content: string): boolean => /<\/?[a-z][\s\S]*>/i.test(content);
+
   const mapHistoryType = (rawType: string): HistoryEntry['type'] => {
     const normalized = rawType.toLowerCase();
 
@@ -694,11 +696,20 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                       </div>
                     </div>
                     {email.email_body && (
-                      <div className="bg-gray-900/50 rounded p-4 mt-3">
-                        <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
-                          {email.email_body}
-                        </p>
-                      </div>
+                      isHtmlContent(email.email_body) ? (
+                        <div className="mt-3 rounded-lg border border-gray-300 bg-white p-4 overflow-x-auto shadow-inner">
+                          <div
+                            className="mx-auto max-w-none text-[14px] leading-6 text-gray-900 [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-lg [&_h3]:font-semibold [&_hr]:my-4 [&_hr]:border-gray-300 [&_img]:my-3 [&_img]:h-auto [&_img]:max-w-full [&_li]:ml-5 [&_li]:mb-1 [&_ol]:my-3 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-3 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:p-2 [&_ul]:my-3 [&_ul]:list-disc"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(email.email_body) }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="bg-gray-900/50 rounded p-4 mt-3">
+                          <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
+                            {email.email_body}
+                          </p>
+                        </div>
+                      )
                     )}
                   </div>
                 ))
