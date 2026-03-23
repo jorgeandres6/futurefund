@@ -20,12 +20,20 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedFundTypes, setSelectedFundTypes] = useState<string[]>([]);
   const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
+  const [selectedApplicationStatuses, setSelectedApplicationStatuses] = useState<string[]>([]);
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
   const typeFilterRef = useRef<HTMLDivElement | null>(null);
+  const statusFilterRef = useRef<HTMLDivElement | null>(null);
 
   const getFundTypeValue = (fund: Fund): string => {
     const type = fund.ticker_isin?.trim();
     return type ? type : 'N/A';
+  };
+
+  const getApplicationStatusValue = (fund: Fund): string => {
+    const status = fund.applicationStatus?.trim();
+    return status ? status : 'PENDIENTE DE APLICACION';
   };
 
   const getCompatibilityStyles = (score: number): React.CSSProperties => {
@@ -43,10 +51,18 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return Array.from(new Set(funds.map(getFundTypeValue))).sort((a, b) => a.localeCompare(b));
   }, [funds]);
 
+  const availableApplicationStatuses = useMemo(() => {
+    return Array.from(new Set(funds.map(getApplicationStatusValue))).sort((a, b) => a.localeCompare(b));
+  }, [funds]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (typeFilterRef.current && !typeFilterRef.current.contains(event.target as Node)) {
         setIsTypeFilterOpen(false);
+      }
+
+      if (statusFilterRef.current && !statusFilterRef.current.contains(event.target as Node)) {
+        setIsStatusFilterOpen(false);
       }
     };
 
@@ -75,6 +91,10 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
       result = result.filter((fund) => selectedFundTypes.includes(getFundTypeValue(fund)));
     }
 
+    if (selectedApplicationStatuses.length > 0) {
+      result = result.filter((fund) => selectedApplicationStatuses.includes(getApplicationStatusValue(fund)));
+    }
+
     // Then, sort by selected column
     result.sort((a, b) => {
       let aValue: string | number = '';
@@ -94,8 +114,8 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           bValue = b.gestor_activos.toLowerCase();
           break;
         case 'estado':
-          aValue = a.applicationStatus || '';
-          bValue = b.applicationStatus || '';
+          aValue = getApplicationStatusValue(a).toLowerCase();
+          bValue = getApplicationStatusValue(b).toLowerCase();
           break;
         case 'impacto':
           aValue = normalizeImpactScore(a.alineacion_detectada.puntuacion_impacto);
@@ -117,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     });
 
     return result;
-  }, [funds, searchText, selectedFundTypes, sortColumn, sortDirection]);
+  }, [funds, searchText, selectedFundTypes, selectedApplicationStatuses, sortColumn, sortDirection]);
 
   const getMainDomain = (url: string, fallbackIndex: number): string => {
     if (!url) return `sin-dominio-${fallbackIndex}`;
@@ -405,12 +425,63 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   className="px-6 py-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors select-none"
                   onClick={() => handleSort('estado')}
                 >
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center space-x-2 relative" ref={statusFilterRef}>
                     <span>Estado de Aplicación</span>
                     {sortColumn === 'estado' && (
                       <svg className={`h-4 w-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsStatusFilterOpen((prev) => !prev);
+                      }}
+                      className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-gray-700"
+                      title="Filtrar Estado de Aplicación"
+                    >
+                      <svg className={`h-3.5 w-3.5 ${selectedApplicationStatuses.length > 0 ? 'text-blue-400' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 01.8 1.6L12 9.75V15a1 1 0 01-1.447.894l-2-1A1 1 0 018 14v-4.25L3.2 3.6A1 1 0 013 3z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+
+                    {isStatusFilterOpen && (
+                      <div
+                        className="absolute top-full right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-3 z-20"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-300">Filtrar por estado</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedApplicationStatuses([])}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            Limpiar
+                          </button>
+                        </div>
+                        <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                          {availableApplicationStatuses.map((status) => {
+                            const checked = selectedApplicationStatuses.includes(status);
+                            return (
+                              <label key={status} className="flex items-center gap-2 text-xs text-gray-200 py-1 px-1 rounded hover:bg-gray-700/50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedApplicationStatuses((prev) =>
+                                      checked ? prev.filter((item) => item !== status) : [...prev, status]
+                                    );
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                                />
+                                <span className="truncate">{status}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </th>
@@ -489,7 +560,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                       })()}
                     </td>
                     <td className="px-6 py-4 text-white text-xs font-bold">
-                      {fund.applicationStatus?.trim() || 'PENDIENTE DE APLICACION'}
+                      {getApplicationStatusValue(fund)}
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
