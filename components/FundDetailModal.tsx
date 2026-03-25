@@ -1,7 +1,6 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
-import { Fund, HistoryEntry } from '../types';
-import { getFundEmails, getFundHistory } from '../services/supabaseService';
+import { Fund } from '../types';
+import { getFundEmails } from '../services/supabaseService';
 import { formatImpactScore, getImpactScoreTier } from '../utils/impactScore';
 
 interface EmailTracking {
@@ -21,19 +20,10 @@ interface FundDetailModalProps {
 
 const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose }) => {
   const [emails, setEmails] = useState<EmailTracking[]>([]);
-  const [dbHistory, setDbHistory] = useState<unknown>(undefined);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
-  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'form' | 'history'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'form'>('general');
   const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(false);
   const impactScoreTier = getImpactScoreTier(fund.alineacion_detectada.puntuacion_impacto);
-
-  const isValidDate = (value: string) => !Number.isNaN(new Date(value).getTime());
-
-  const toSafeString = (value: unknown): string => {
-    if (typeof value === 'string') return value.trim();
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    return '';
-  };
 
   const stripHtmlTags = (html: string): string => {
     if (!html) return '';
@@ -59,18 +49,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
   const isHtmlContent = (content: string): boolean => /<\/?[a-z][\s\S]*>/i.test(content);
 
-  const mapHistoryType = (rawType: string): HistoryEntry['type'] => {
-    const normalized = rawType.toLowerCase();
-
-    if (normalized.includes('received') || normalized.includes('recib')) return 'email_received';
-    if (normalized.includes('sent') || normalized.includes('envi')) return 'email_sent';
-    if (normalized.includes('form')) return 'form_filled';
-    if (normalized.includes('call') || normalized.includes('llamada')) return 'call';
-    if (normalized.includes('meeting') || normalized.includes('reunion') || normalized.includes('reunión')) return 'meeting';
-
-    return 'note';
-  };
-
   const formatTextualEvidence = (value: unknown): string => {
     if (value == null) return '';
 
@@ -95,7 +73,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     }
 
     if (Array.isArray(value)) {
-      // If JSON comes as an array, attempt to extract any nested "analisis" value.
       return value
         .map((item) => formatTextualEvidence(item))
         .filter(Boolean)
@@ -120,170 +97,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     return String(value);
   };
 
-  const normalizeHistory = (historyData: unknown): HistoryEntry[] => {
-    if (!historyData) return [];
-
-    const parseArrayEntry = (value: unknown, fallbackLabel: string): HistoryEntry | null => {
-      if (!Array.isArray(value) || value.length === 0) {
-        return null;
-      }
-
-      const hasComplexValues = value.some((item) => typeof item === 'object' && item !== null);
-      if (hasComplexValues) {
-        return null;
-      }
-
-      const rawDate = value[value.length - 1];
-      const hasDate = typeof rawDate === 'string' && isValidDate(rawDate);
-      const payload = hasDate ? value.slice(0, -1) : value;
-
-      const textParts = payload
-        .map((item) => (typeof item === 'string' ? item.trim() : String(item ?? '').trim()))
-        .filter(Boolean);
-
-      const primaryText = textParts[0] || fallbackLabel;
-      const extraText = textParts.slice(1).join(' · ');
-
-      return {
-        type: 'note',
-        date: hasDate ? rawDate : new Date().toISOString(),
-        description: primaryText,
-        details: extraText ? { notes: extraText } : undefined,
-      };
-    };
-
-    const parseObjectEntry = (entry: Record<string, unknown>): HistoryEntry | null => {
-      const receptor =
-        toSafeString(entry.RECEPTOR) ||
-        toSafeString(entry.receptor) ||
-        toSafeString(entry.to) ||
-        toSafeString(entry.destinatario);
-      const emisor =
-        toSafeString(entry.EMISOR) ||
-        toSafeString(entry.emisor) ||
-        toSafeString(entry.from) ||
-        toSafeString(entry.remitente);
-      const tipoRaw =
-        toSafeString(entry.TIPO) ||
-        toSafeString(entry.tipo) ||
-        toSafeString(entry.type) ||
-        'note';
-      const fechaRaw =
-        toSafeString(entry.FECHA) ||
-        toSafeString(entry.fecha) ||
-        toSafeString(entry.date);
-      const contenidoRaw =
-        toSafeString(entry.CONTENIDO) ||
-        toSafeString(entry.contenido) ||
-        toSafeString(entry.body) ||
-        toSafeString(entry.email_body);
-      const subjectRaw =
-        toSafeString(entry.subject) ||
-        toSafeString(entry.asunto) ||
-        toSafeString(entry.SUBJECT);
-      const formNameRaw =
-        toSafeString(entry.form_name) ||
-        toSafeString(entry.formulario) ||
-        toSafeString(entry.nombre_formulario);
-      const notesRaw =
-        toSafeString(entry.notes) ||
-        toSafeString(entry.nota) ||
-        toSafeString(entry.notas);
-      const formDataRaw =
-        entry.form_data ??
-        entry.formData ??
-        entry.formulario_data ??
-        entry.formulario;
-
-      if (fechaRaw || contenidoRaw || receptor || emisor || tipoRaw !== 'note') {
-        const cleanHtml = sanitizeHtml(contenidoRaw);
-        const plainContent = stripHtmlTags(contenidoRaw);
-
-        return {
-          type: mapHistoryType(tipoRaw),
-          date: isValidDate(fechaRaw) ? fechaRaw : new Date().toISOString(),
-          description: tipoRaw || 'Interacción por correo',
-          details: {
-            from: emisor || undefined,
-            to: receptor || undefined,
-            subject: subjectRaw || undefined,
-            body: plainContent || undefined,
-            body_html: cleanHtml || undefined,
-            form_name: formNameRaw || undefined,
-            form_data: formDataRaw ?? undefined,
-            notes: notesRaw || undefined,
-          },
-        };
-      }
-
-      if (!('date' in entry) || !('description' in entry)) {
-        return null;
-      }
-
-      const date = typeof entry.date === 'string' && isValidDate(entry.date)
-        ? entry.date
-        : new Date().toISOString();
-      const description = typeof entry.description === 'string'
-        ? entry.description
-        : String(entry.description ?? 'Entrada de historial');
-
-      return {
-        ...(entry as HistoryEntry),
-        type: (typeof entry.type === 'string' ? entry.type : 'note') as HistoryEntry['type'],
-        date,
-        description,
-      };
-    };
-
-    const flatten = (node: unknown, fallbackLabel: string): HistoryEntry[] => {
-      if (!node) return [];
-
-      if (typeof node === 'string') {
-        const trimmed = node.trim();
-        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            return flatten(parsed, fallbackLabel);
-          } catch {
-            return [];
-          }
-        }
-        return [];
-      }
-
-      if (Array.isArray(node)) {
-        const single = parseArrayEntry(node, fallbackLabel);
-        if (single) {
-          return [single];
-        }
-
-        return node.flatMap((child, index) => flatten(child, `${fallbackLabel} ${index + 1}`.trim()));
-      }
-
-      if (node && typeof node === 'object') {
-        const asRecord = node as Record<string, unknown>;
-        const typedEntry = parseObjectEntry(asRecord);
-        if (typedEntry) {
-          return [typedEntry];
-        }
-
-        return Object.entries(asRecord).flatMap(([key, value]) => flatten(value, key));
-      }
-
-      return [];
-    };
-
-    return flatten(historyData, 'Entrada');
-  };
-
-  const normalizedHistory = useMemo(() => {
-    const fundEntries = normalizeHistory(fund.history as unknown);
-    const entries = fundEntries.length > 0 ? fundEntries : normalizeHistory(dbHistory);
-    return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [fund.history, dbHistory]);
-
   const formattedEvidence = useMemo(
-    () => formatTextualEvidence((fund.evidencia_texto as unknown)),
+    () => formatTextualEvidence(fund.evidencia_texto as unknown),
     [fund.evidencia_texto],
   );
 
@@ -339,110 +154,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     }
   };
 
-  const parseJsonLikeValue = (value: unknown): unknown => {
-    if (typeof value !== 'string') return value;
-
-    const trimmed = value.trim();
-    if (!trimmed) return value;
-
-    const isJsonLike =
-      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'));
-
-    if (!isJsonLike) return value;
-
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value;
-    }
-  };
-
-  const formatDetailLabel = (key: string): string => {
-    const normalized = key
-      .replace(/_/g, ' ')
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .trim();
-
-    if (!normalized) return 'Detalle';
-
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  };
-
-  const renderHistoryStructuredValue = (value: unknown): React.ReactNode => {
-    const parsedValue = parseJsonLikeValue(value);
-
-    if (parsedValue == null) {
-      return <span className="text-gray-500 text-sm">N/A</span>;
-    }
-
-    if (typeof parsedValue === 'string') {
-      return (
-        <p className="text-gray-300 text-sm whitespace-pre-wrap break-words leading-relaxed">
-          {parsedValue}
-        </p>
-      );
-    }
-
-    if (typeof parsedValue === 'number' || typeof parsedValue === 'boolean') {
-      return <span className="text-gray-300 text-sm">{String(parsedValue)}</span>;
-    }
-
-    if (Array.isArray(parsedValue)) {
-      if (parsedValue.length === 0) {
-        return <span className="text-gray-500 text-sm">Sin datos</span>;
-      }
-
-      const allPrimitive = parsedValue.every(
-        (item) => item == null || ['string', 'number', 'boolean'].includes(typeof item),
-      );
-
-      if (allPrimitive) {
-        return (
-          <div className="flex flex-wrap gap-2">
-            {parsedValue.map((item, index) => (
-              <span key={index} className="bg-gray-800 text-gray-200 px-2.5 py-1 rounded-md text-xs border border-gray-700">
-                {String(item ?? 'N/A')}
-              </span>
-            ))}
-          </div>
-        );
-      }
-
-      return (
-        <div className="space-y-3">
-          {parsedValue.map((item, index) => (
-            <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/60 p-3">
-              <div className="text-xs font-semibold text-gray-400 mb-2">Elemento {index + 1}</div>
-              {renderHistoryStructuredValue(item)}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (typeof parsedValue === 'object') {
-      const entries = Object.entries(parsedValue as Record<string, unknown>);
-
-      if (entries.length === 0) {
-        return <span className="text-gray-500 text-sm">Sin datos</span>;
-      }
-
-      return (
-        <div className="space-y-3">
-          {entries.map(([key, nestedValue]) => (
-            <div key={key} className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2 md:gap-4 pb-3 border-b border-gray-700/60 last:border-b-0 last:pb-0">
-              <span className="text-gray-400 text-sm font-medium">{formatDetailLabel(key)}</span>
-              <div>{renderHistoryStructuredValue(nestedValue)}</div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    return <span className="text-gray-300 text-sm">{String(parsedValue)}</span>;
-  };
-
   useEffect(() => {
     const loadEmails = async () => {
       try {
@@ -457,19 +168,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     };
 
     loadEmails();
-  }, [userId, fund.nombre_fondo]);
-
-  useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const historyData = await getFundHistory(userId, fund.nombre_fondo);
-        setDbHistory(historyData);
-      } catch (error) {
-        console.error('Error loading fund history:', error);
-      }
-    };
-
-    loadHistory();
   }, [userId, fund.nombre_fondo]);
 
   useEffect(() => {
@@ -489,7 +187,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     } catch {
       return dateString;
@@ -498,9 +196,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
 
   const getEmailTypeLabel = (type: string) => {
     const normalized = type.toLowerCase();
-    return normalized === 'sent' || normalized === 'enviado' 
-      ? 'Enviado' 
-      : 'Recibido';
+    return normalized === 'sent' || normalized === 'enviado' ? 'Enviado' : 'Recibido';
   };
 
   const getEmailTypeColor = (type: string) => {
@@ -511,12 +207,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden border border-gray-700 animate-fade-in">
-        {/* Header */}
         <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 p-6 border-b border-gray-700">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -526,21 +221,25 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 Tipo de Fondo: <span className="text-gray-200 font-medium">{fund.ticker_isin?.trim() || 'N/A'}</span>
               </p>
               <div className="flex gap-2 mt-3">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  impactScoreTier === 'high'
-                    ? 'bg-green-900/50 text-green-300 border border-green-700'
-                    : impactScoreTier === 'medium'
-                      ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
-                      : 'bg-red-900/50 text-red-300 border border-red-700'
-                }`}>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    impactScoreTier === 'high'
+                      ? 'bg-green-900/50 text-green-300 border border-green-700'
+                      : impactScoreTier === 'medium'
+                        ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+                        : 'bg-red-900/50 text-red-300 border border-red-700'
+                  }`}
+                >
                   {formatImpactScore(fund.alineacion_detectada.puntuacion_impacto)}
                 </span>
                 {fund.applicationStatus && (
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    fund.applicationStatus === 'PENDIENTE'
-                      ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
-                      : 'bg-green-900/50 text-green-300 border border-green-700'
-                  }`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      fund.applicationStatus === 'PENDIENTE'
+                        ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+                        : 'bg-green-900/50 text-green-300 border border-green-700'
+                    }`}
+                  >
                     {fund.applicationStatus}
                   </span>
                 )}
@@ -557,7 +256,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             </button>
           </div>
         </div>
-        {/* Tabs */}
+
         <div className="flex border-b border-gray-700 bg-gray-800/50">
           <button
             onClick={() => setActiveTab('general')}
@@ -609,28 +308,11 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
               </span>
             )}
           </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-6 py-3 font-medium text-sm transition-colors relative ${
-              activeTab === 'history'
-                ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Historial
-            {normalizedHistory.length > 0 && (
-              <span className="ml-2 bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {normalizedHistory.length}
-              </span>
-            )}
-          </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-220px)]">
           {activeTab === 'general' && (
             <div className="space-y-6">
-              {/* Basic Info */}
               <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -649,9 +331,9 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                   </div>
                   <div className="col-span-full">
                     <p className="text-gray-400 text-sm mb-1">URL Fuente</p>
-                    <a 
-                      href={fund.url_fuente} 
-                      target="_blank" 
+                    <a
+                      href={fund.url_fuente}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300 break-all underline"
                     >
@@ -661,7 +343,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </div>
               </div>
 
-              {/* ODS */}
               <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -671,7 +352,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {fund.alineacion_detectada.ods_encontrados.map((ods, idx) => (
-                    <span 
+                    <span
                       key={idx}
                       className="bg-purple-900/30 text-purple-300 px-3 py-1.5 rounded-lg border border-purple-700 text-sm"
                     >
@@ -681,7 +362,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </div>
               </div>
 
-              {/* Keywords */}
               <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -691,7 +371,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {fund.alineacion_detectada.keywords_encontradas.map((keyword, idx) => (
-                    <span 
+                    <span
                       key={idx}
                       className="bg-green-900/30 text-green-300 px-3 py-1.5 rounded-lg border border-green-700 text-sm"
                     >
@@ -701,7 +381,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                 </div>
               </div>
 
-              {/* Evidence */}
               <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                 <button
                   type="button"
@@ -738,7 +417,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             <div className="space-y-6">
               {fund.analisis_aplicacion ? (
                 <>
-                  {/* Eligibility */}
                   {fund.analisis_aplicacion.es_elegible && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -751,7 +429,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                     </div>
                   )}
 
-                  {/* Requirements */}
                   {fund.analisis_aplicacion.resumen_requisitos.length > 0 && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -771,7 +448,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                     </div>
                   )}
 
-                  {/* Application Steps */}
                   {fund.analisis_aplicacion.pasos_aplicacion.length > 0 && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -793,7 +469,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                     </div>
                   )}
 
-                  {/* Key Dates */}
                   {fund.analisis_aplicacion.fechas_clave && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -806,7 +481,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                     </div>
                   )}
 
-                  {/* Application Link */}
                   {fund.analisis_aplicacion.link_directo_aplicacion && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -815,7 +489,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                         </svg>
                         Link de Aplicación
                       </h3>
-                      <a 
+                      <a
                         href={fund.analisis_aplicacion.link_directo_aplicacion}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -826,7 +500,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                     </div>
                   )}
 
-                  {/* Contact Emails */}
                   {fund.analisis_aplicacion.contact_emails.length > 0 && (
                     <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
                       <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -897,7 +570,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                       ) : (
                         <div className="bg-gray-900/50 rounded p-4 mt-3">
                           <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
-                            {email.email_body}
+                            {stripHtmlTags(email.email_body)}
                           </p>
                         </div>
                       )
@@ -971,144 +644,8 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
               )}
             </div>
           )}
-
-          {activeTab === 'history' && (
-            <div className="space-y-4">
-              {normalizedHistory.length > 0 ? (
-                normalizedHistory.map((entry, index) => (
-                  <div key={index} className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {entry.type === 'email_sent' && (
-                          <div className="bg-blue-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type === 'email_received' && (
-                          <div className="bg-green-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type === 'form_filled' && (
-                          <div className="bg-purple-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type === 'note' && (
-                          <div className="bg-yellow-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type === 'call' && (
-                          <div className="bg-indigo-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type === 'meeting' && (
-                          <div className="bg-red-900/50 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.type !== 'email_sent' && entry.type !== 'email_received' && entry.type !== 'form_filled' && entry.type !== 'note' && entry.type !== 'call' && entry.type !== 'meeting' && (
-                          <div className="bg-gray-700 p-2 rounded-lg">
-                            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                        )}
-                        <div>
-                          <h4 className="text-white font-medium">{entry.description}</h4>
-                          <span className="text-gray-400 text-sm">{formatDate(entry.date)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    {entry.details && Object.keys(entry.details).length > 0 && (
-                      <div className="bg-gray-900/50 rounded p-4 mt-3">
-                        {entry.details.from && (
-                          <div className="flex text-sm mb-2">
-                            <span className="text-gray-400 w-24">De:</span>
-                            <span className="text-gray-300">{entry.details.from}</span>
-                          </div>
-                        )}
-                        {entry.details.to && (
-                          <div className="flex text-sm mb-2">
-                            <span className="text-gray-400 w-24">Para:</span>
-                            <span className="text-gray-300">{entry.details.to}</span>
-                          </div>
-                        )}
-                        {entry.details.subject && (
-                          <div className="flex text-sm mb-2">
-                            <span className="text-gray-400 w-24">Asunto:</span>
-                            <span className="text-gray-300">{entry.details.subject}</span>
-                          </div>
-                        )}
-                        {entry.details.body_html && typeof parseJsonLikeValue(entry.details.body_html) === 'string' && isHtmlContent(String(entry.details.body_html)) ? (
-                          <div className="mt-3 rounded-lg border border-gray-300 bg-white p-4 overflow-x-auto shadow-inner">
-                            <div
-                              className="mx-auto max-w-none text-[14px] leading-6 text-gray-900 [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-lg [&_h3]:font-semibold [&_hr]:my-4 [&_hr]:border-gray-300 [&_img]:my-3 [&_img]:h-auto [&_img]:max-w-full [&_li]:ml-5 [&_li]:mb-1 [&_ol]:my-3 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-3 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:p-2 [&_ul]:my-3 [&_ul]:list-disc"
-                              dangerouslySetInnerHTML={{ __html: String(entry.details.body_html) }}
-                            />
-                          </div>
-                        ) : entry.details.body ? (
-                          <div className="mt-3">
-                            {renderHistoryStructuredValue(entry.details.body)}
-                          </div>
-                        ) : null}
-                        {entry.details.form_name && (
-                          <div className="flex text-sm mb-2">
-                            <span className="text-gray-400 w-24">Formulario:</span>
-                            <span className="text-gray-300">{entry.details.form_name}</span>
-                          </div>
-                        )}
-                        {entry.details.form_data != null && (
-                          <div className="mt-3">
-                            <div className="text-gray-400 text-sm mb-2">Datos del formulario</div>
-                            {renderHistoryStructuredValue(entry.details.form_data)}
-                          </div>
-                        )}
-                        {entry.details.notes && (
-                          <div className="mt-3">
-                            {renderHistoryStructuredValue(entry.details.notes)}
-                          </div>
-                        )}
-                        {Object.entries(entry.details)
-                          .filter(([key, value]) => !['from', 'to', 'subject', 'body', 'body_html', 'form_name', 'form_data', 'notes'].includes(key) && value != null)
-                          .map(([key, value]) => (
-                            <div key={key} className="mt-3">
-                              <div className="text-gray-400 text-sm mb-2">{formatDetailLabel(key)}</div>
-                              {renderHistoryStructuredValue(value)}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-gray-400 text-lg">No hay historial registrado</p>
-                  <p className="text-gray-500 text-sm mt-2">Las comunicaciones y actividades aparecerán aquí</p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Footer */}
         <div className="bg-gray-800/50 p-4 border-t border-gray-700 flex justify-end">
           <button
             onClick={onClose}
