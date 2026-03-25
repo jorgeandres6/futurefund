@@ -4,6 +4,7 @@ import { Fund } from '../types';
 import FundDetailModal from './FundDetailModal';
 import DownloadIcon from './icons/DownloadIcon';
 import { formatImpactScore, normalizeImpactScore } from '../utils/impactScore';
+import { getFundNamesWithEmails } from '../services/supabaseService';
 
 interface DashboardProps {
   funds: Fund[];
@@ -22,9 +23,46 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
   const [selectedApplicationStatuses, setSelectedApplicationStatuses] = useState<string[]>([]);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const [onlyWithEmails, setOnlyWithEmails] = useState(false);
+  const [onlyWithForm, setOnlyWithForm] = useState(false);
+  const [fundNamesWithEmails, setFundNamesWithEmails] = useState<Set<string>>(new Set());
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
   const typeFilterRef = useRef<HTMLDivElement | null>(null);
   const statusFilterRef = useRef<HTMLDivElement | null>(null);
+
+  const hasFormData = (fund: Fund): boolean => {
+    const formData = fund.form as unknown;
+
+    if (!formData) return false;
+
+    if (Array.isArray(formData)) {
+      return formData.some((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+        return Object.keys(entry as Record<string, unknown>).length > 0;
+      });
+    }
+
+    if (typeof formData === 'object' && !Array.isArray(formData)) {
+      return Object.keys(formData as Record<string, unknown>).length > 0;
+    }
+
+    if (typeof formData === 'string') {
+      const trimmed = formData.trim();
+      if (!trimmed) return false;
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.some((entry) => entry && typeof entry === 'object' && !Array.isArray(entry));
+        }
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed);
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  };
 
   const getFundTypeValue = (fund: Fund): string => {
     const type = fund.ticker_isin?.trim();
@@ -70,6 +108,23 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadEmailFilterData = async () => {
+      const namesWithEmails = await getFundNamesWithEmails(userId);
+      if (!isCancelled) {
+        setFundNamesWithEmails(namesWithEmails);
+      }
+    };
+
+    loadEmailFilterData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [userId, funds]);
+
   // Handle column sort
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -93,6 +148,14 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
 
     if (selectedApplicationStatuses.length > 0) {
       result = result.filter((fund) => selectedApplicationStatuses.includes(getApplicationStatusValue(fund)));
+    }
+
+    if (onlyWithEmails) {
+      result = result.filter((fund) => fundNamesWithEmails.has(fund.nombre_fondo));
+    }
+
+    if (onlyWithForm) {
+      result = result.filter((fund) => hasFormData(fund));
     }
 
     // Then, sort by selected column
@@ -137,7 +200,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     });
 
     return result;
-  }, [funds, searchText, selectedFundTypes, selectedApplicationStatuses, sortColumn, sortDirection]);
+  }, [
+    funds,
+    searchText,
+    selectedFundTypes,
+    selectedApplicationStatuses,
+    onlyWithEmails,
+    onlyWithForm,
+    fundNamesWithEmails,
+    sortColumn,
+    sortDirection,
+  ]);
 
   const getMainDomain = (url: string, fallbackIndex: number): string => {
     if (!url) return `sin-dominio-${fallbackIndex}`;
@@ -302,6 +375,28 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
               >
                 <DownloadIcon className="w-4 h-4 mr-2" />
                 Descargar Reporte
+              </button>
+              <button
+                onClick={() => setOnlyWithEmails((prev) => !prev)}
+                className={`flex items-center font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm border ${
+                  onlyWithEmails
+                    ? 'bg-blue-800/60 border-blue-500 text-blue-100'
+                    : 'bg-gray-800/60 border-gray-600 text-gray-200 hover:bg-gray-700/60'
+                }`}
+                title="Filtrar fondos con conversaciones de email"
+              >
+                Emails
+              </button>
+              <button
+                onClick={() => setOnlyWithForm((prev) => !prev)}
+                className={`flex items-center font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm border ${
+                  onlyWithForm
+                    ? 'bg-cyan-800/60 border-cyan-500 text-cyan-100'
+                    : 'bg-gray-800/60 border-gray-600 text-gray-200 hover:bg-gray-700/60'
+                }`}
+                title="Filtrar fondos con datos en formulario"
+              >
+                Form
               </button>
               <div className="relative">
                 <input
@@ -505,7 +600,9 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
               {groupedFunds.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                    {searchText ? 'No se encontraron fondos que coincidan con tu búsqueda.' : 'No hay fondos disponibles.'}
+                    {searchText || onlyWithEmails || onlyWithForm
+                      ? 'No se encontraron fondos con los filtros actuales.'
+                      : 'No hay fondos disponibles.'}
                   </td>
                 </tr>
               ) : (

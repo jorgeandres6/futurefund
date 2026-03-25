@@ -308,3 +308,49 @@ export const getFundEmails = async (userId: string, fundName: string) => {
     return [];
   }
 };
+
+/**
+ * Get fund names that have at least one tracked email conversation.
+ * Read-only helper for dashboard filters.
+ */
+export const getFundNamesWithEmails = async (userId: string): Promise<Set<string>> => {
+  try {
+    const { data: userFunds, error: fundsError } = await supabase
+      .from<'funds', FundsTable>('funds')
+      .select('id,nombre_fondo')
+      .eq('user_id', userId);
+
+    if (fundsError) throw fundsError;
+    if (!userFunds || userFunds.length === 0) return new Set<string>();
+
+    const fundIdToName = new Map<string, string>();
+    userFunds.forEach((fund) => {
+      if (fund?.id && fund?.nombre_fondo) {
+        fundIdToName.set(fund.id, fund.nombre_fondo);
+      }
+    });
+
+    const fundIds = Array.from(fundIdToName.keys());
+    if (fundIds.length === 0) return new Set<string>();
+
+    const { data: emailRows, error: emailsError } = await supabase
+      .from('email_tracking')
+      .select('fund_id')
+      .in('fund_id', fundIds)
+      .not('fund_id', 'is', null);
+
+    if (emailsError) throw emailsError;
+
+    const fundNamesWithEmails = new Set<string>();
+    (emailRows || []).forEach((row: { fund_id: string | null }) => {
+      if (!row.fund_id) return;
+      const fundName = fundIdToName.get(row.fund_id);
+      if (fundName) fundNamesWithEmails.add(fundName);
+    });
+
+    return fundNamesWithEmails;
+  } catch (error) {
+    console.error('Error getting fund names with emails:', error);
+    return new Set<string>();
+  }
+};
