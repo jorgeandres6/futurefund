@@ -160,14 +160,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return Array.from(new Set(funds.map(getApplicationStatusValue))).sort((a, b) => a.localeCompare(b));
   }, [funds]);
 
-  const emailFundsCount = useMemo(() => {
-    return funds.filter((fund) => hasEmailHistoryData(fund)).length;
-  }, [funds]);
-
-  const formFundsCount = useMemo(() => {
-    return funds.filter((fund) => hasFormData(fund)).length;
-  }, [funds]);
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (typeFilterRef.current && !typeFilterRef.current.contains(event.target as Node)) {
@@ -443,11 +435,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 title="Filtrar fondos con conversaciones de email"
               >
                 Emails
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                  onlyWithEmails ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'
-                }`}>
-                  {emailFundsCount}
-                </span>
               </button>
               <button
                 onClick={() => setOnlyWithForm((prev) => !prev)}
@@ -459,11 +446,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 title="Filtrar fondos con datos en formulario"
               >
                 Form
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                  onlyWithForm ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-200'
-                }`}>
-                  {formFundsCount}
-                </span>
               </button>
               <div className="relative">
                 <input
