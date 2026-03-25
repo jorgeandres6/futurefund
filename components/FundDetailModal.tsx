@@ -432,7 +432,6 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             </button>
           </div>
         </div>
-            <p className="text-gray-400">{formatImpactScore(fund.alineacion_detectada.puntuacion_impacto)}</p>
         {/* Tabs */}
         <div className="flex border-b border-gray-700 bg-gray-800/50">
           <button
