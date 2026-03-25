@@ -177,6 +177,23 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
         toSafeString(entry.contenido) ||
         toSafeString(entry.body) ||
         toSafeString(entry.email_body);
+      const subjectRaw =
+        toSafeString(entry.subject) ||
+        toSafeString(entry.asunto) ||
+        toSafeString(entry.SUBJECT);
+      const formNameRaw =
+        toSafeString(entry.form_name) ||
+        toSafeString(entry.formulario) ||
+        toSafeString(entry.nombre_formulario);
+      const notesRaw =
+        toSafeString(entry.notes) ||
+        toSafeString(entry.nota) ||
+        toSafeString(entry.notas);
+      const formDataRaw =
+        entry.form_data ??
+        entry.formData ??
+        entry.formulario_data ??
+        entry.formulario;
 
       if (fechaRaw || contenidoRaw || receptor || emisor || tipoRaw !== 'note') {
         const cleanHtml = sanitizeHtml(contenidoRaw);
@@ -189,8 +206,12 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
           details: {
             from: emisor || undefined,
             to: receptor || undefined,
+            subject: subjectRaw || undefined,
             body: plainContent || undefined,
             body_html: cleanHtml || undefined,
+            form_name: formNameRaw || undefined,
+            form_data: formDataRaw ?? undefined,
+            notes: notesRaw || undefined,
           },
         };
       }
@@ -316,6 +337,110 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     } catch {
       return String(value);
     }
+  };
+
+  const parseJsonLikeValue = (value: unknown): unknown => {
+    if (typeof value !== 'string') return value;
+
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+
+    const isJsonLike =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'));
+
+    if (!isJsonLike) return value;
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  };
+
+  const formatDetailLabel = (key: string): string => {
+    const normalized = key
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .trim();
+
+    if (!normalized) return 'Detalle';
+
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
+
+  const renderHistoryStructuredValue = (value: unknown): React.ReactNode => {
+    const parsedValue = parseJsonLikeValue(value);
+
+    if (parsedValue == null) {
+      return <span className="text-gray-500 text-sm">N/A</span>;
+    }
+
+    if (typeof parsedValue === 'string') {
+      return (
+        <p className="text-gray-300 text-sm whitespace-pre-wrap break-words leading-relaxed">
+          {parsedValue}
+        </p>
+      );
+    }
+
+    if (typeof parsedValue === 'number' || typeof parsedValue === 'boolean') {
+      return <span className="text-gray-300 text-sm">{String(parsedValue)}</span>;
+    }
+
+    if (Array.isArray(parsedValue)) {
+      if (parsedValue.length === 0) {
+        return <span className="text-gray-500 text-sm">Sin datos</span>;
+      }
+
+      const allPrimitive = parsedValue.every(
+        (item) => item == null || ['string', 'number', 'boolean'].includes(typeof item),
+      );
+
+      if (allPrimitive) {
+        return (
+          <div className="flex flex-wrap gap-2">
+            {parsedValue.map((item, index) => (
+              <span key={index} className="bg-gray-800 text-gray-200 px-2.5 py-1 rounded-md text-xs border border-gray-700">
+                {String(item ?? 'N/A')}
+              </span>
+            ))}
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-3">
+          {parsedValue.map((item, index) => (
+            <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/60 p-3">
+              <div className="text-xs font-semibold text-gray-400 mb-2">Elemento {index + 1}</div>
+              {renderHistoryStructuredValue(item)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (typeof parsedValue === 'object') {
+      const entries = Object.entries(parsedValue as Record<string, unknown>);
+
+      if (entries.length === 0) {
+        return <span className="text-gray-500 text-sm">Sin datos</span>;
+      }
+
+      return (
+        <div className="space-y-3">
+          {entries.map(([key, nestedValue]) => (
+            <div key={key} className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2 md:gap-4 pb-3 border-b border-gray-700/60 last:border-b-0 last:pb-0">
+              <span className="text-gray-400 text-sm font-medium">{formatDetailLabel(key)}</span>
+              <div>{renderHistoryStructuredValue(nestedValue)}</div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <span className="text-gray-300 text-sm">{String(parsedValue)}</span>;
   };
 
   useEffect(() => {
@@ -929,7 +1054,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                             <span className="text-gray-300">{entry.details.subject}</span>
                           </div>
                         )}
-                        {entry.details.body_html ? (
+                        {entry.details.body_html && typeof parseJsonLikeValue(entry.details.body_html) === 'string' && isHtmlContent(String(entry.details.body_html)) ? (
                           <div className="mt-3 rounded-lg border border-gray-300 bg-white p-4 overflow-x-auto shadow-inner">
                             <div
                               className="mx-auto max-w-none text-[14px] leading-6 text-gray-900 [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-lg [&_h3]:font-semibold [&_hr]:my-4 [&_hr]:border-gray-300 [&_img]:my-3 [&_img]:h-auto [&_img]:max-w-full [&_li]:ml-5 [&_li]:mb-1 [&_ol]:my-3 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-3 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:p-2 [&_ul]:my-3 [&_ul]:list-disc"
@@ -938,9 +1063,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                           </div>
                         ) : entry.details.body ? (
                           <div className="mt-3">
-                            <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
-                              {entry.details.body}
-                            </p>
+                            {renderHistoryStructuredValue(entry.details.body)}
                           </div>
                         ) : null}
                         {entry.details.form_name && (
@@ -949,13 +1072,25 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                             <span className="text-gray-300">{entry.details.form_name}</span>
                           </div>
                         )}
-                        {entry.details.notes && (
+                        {entry.details.form_data != null && (
                           <div className="mt-3">
-                            <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
-                              {entry.details.notes}
-                            </p>
+                            <div className="text-gray-400 text-sm mb-2">Datos del formulario</div>
+                            {renderHistoryStructuredValue(entry.details.form_data)}
                           </div>
                         )}
+                        {entry.details.notes && (
+                          <div className="mt-3">
+                            {renderHistoryStructuredValue(entry.details.notes)}
+                          </div>
+                        )}
+                        {Object.entries(entry.details)
+                          .filter(([key, value]) => !['from', 'to', 'subject', 'body', 'body_html', 'form_name', 'form_data', 'notes'].includes(key) && value != null)
+                          .map(([key, value]) => (
+                            <div key={key} className="mt-3">
+                              <div className="text-gray-400 text-sm mb-2">{formatDetailLabel(key)}</div>
+                              {renderHistoryStructuredValue(value)}
+                            </div>
+                          ))}
                       </div>
                     )}
                   </div>
