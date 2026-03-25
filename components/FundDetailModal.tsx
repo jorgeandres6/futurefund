@@ -23,7 +23,7 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
   const [emails, setEmails] = useState<EmailTracking[]>([]);
   const [dbHistory, setDbHistory] = useState<unknown>(undefined);
   const [isLoadingEmails, setIsLoadingEmails] = useState(true);
-  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'history'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'application' | 'emails' | 'form' | 'history'>('general');
   const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(false);
   const impactScoreTier = getImpactScoreTier(fund.alineacion_detectada.puntuacion_impacto);
 
@@ -266,6 +266,58 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
     [fund.evidencia_texto],
   );
 
+  const normalizedFormEntries = useMemo(() => {
+    const rawForm = fund.form as unknown;
+
+    if (!rawForm) return [] as Array<Record<string, unknown>>;
+
+    if (Array.isArray(rawForm)) {
+      return rawForm
+        .filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))
+        .map((entry) => entry as Record<string, unknown>);
+    }
+
+    if (typeof rawForm === 'object' && !Array.isArray(rawForm)) {
+      return [rawForm as Record<string, unknown>];
+    }
+
+    if (typeof rawForm === 'string') {
+      try {
+        const parsed = JSON.parse(rawForm);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))
+            .map((entry) => entry as Record<string, unknown>);
+        }
+
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return [parsed as Record<string, unknown>];
+        }
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  }, [fund.form]);
+
+  const stringifyFormValue = (value: unknown): string => {
+    if (value == null) return 'N/A';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed || 'N/A';
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
   useEffect(() => {
     const loadEmails = async () => {
       try {
@@ -415,6 +467,21 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
             {emails.length > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {emails.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('form')}
+            className={`px-6 py-3 font-medium text-sm transition-colors relative ${
+              activeTab === 'form'
+                ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Formulario
+            {normalizedFormEntries.length > 0 && (
+              <span className="ml-2 bg-cyan-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {normalizedFormEntries.length}
               </span>
             )}
           </button>
@@ -720,6 +787,62 @@ const FundDetailModal: React.FC<FundDetailModalProps> = ({ fund, userId, onClose
                   </svg>
                   <p className="text-gray-400 text-lg">No hay emails registrados</p>
                   <p className="text-gray-500 text-sm mt-2">Los emails enviados y recibidos aparecerán aquí</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'form' && (
+            <div className="space-y-6">
+              {fund.fecha_form && (
+                <div className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Fecha de Formulario
+                  </h3>
+                  <p className="text-gray-300">{formatDate(fund.fecha_form)}</p>
+                </div>
+              )}
+
+              {normalizedFormEntries.length > 0 ? (
+                normalizedFormEntries.map((entry, index) => {
+                  const fields = Object.entries(entry);
+
+                  return (
+                    <div key={index} className="bg-gray-800/50 rounded-lg p-5 border border-gray-700">
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Respuesta {index + 1}
+                      </h3>
+
+                      {fields.length > 0 ? (
+                        <div className="space-y-3">
+                          {fields.map(([field, value]) => (
+                            <div key={field} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2 md:gap-4 pb-3 border-b border-gray-700/60 last:border-b-0 last:pb-0">
+                              <span className="text-gray-400 text-sm font-medium">{field}</span>
+                              <span className="text-gray-200 text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                {stringifyFormValue(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-400">No hay campos en este formulario</p>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-gray-400 text-lg">No hay formularios registrados</p>
+                  <p className="text-gray-500 text-sm mt-2">Las respuestas del formulario aparecerán aquí</p>
                 </div>
               )}
             </div>

@@ -151,6 +151,38 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
         Boolean(item.link_directo_aplicacion) ||
         (Array.isArray(item.contact_emails) && item.contact_emails.length > 0);
 
+      const normalizedForm = (() => {
+        if (!item.form) return undefined;
+
+        if (Array.isArray(item.form)) {
+          return item.form
+            .filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))
+            .map((entry) => entry as Record<string, unknown>);
+        }
+
+        if (typeof item.form === 'string') {
+          try {
+            const parsed = JSON.parse(item.form);
+            if (Array.isArray(parsed)) {
+              return parsed
+                .filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))
+                .map((entry) => entry as Record<string, unknown>);
+            }
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              return [parsed as Record<string, unknown>];
+            }
+          } catch {
+            return undefined;
+          }
+        }
+
+        if (typeof item.form === 'object' && !Array.isArray(item.form)) {
+          return [item.form as Record<string, unknown>];
+        }
+
+        return undefined;
+      })();
+
       return ({
       nombre_fondo: item.nombre_fondo,
       gestor_activos: item.gestor_activos,
@@ -177,6 +209,8 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
       updated_at: item.updated_at,
       analyzed_at: item.analyzed_at || undefined,
       history: item.history as any || undefined,
+      form: normalizedForm,
+      fecha_form: item.fecha_form || undefined,
       created_at: item.created_at,
       });
     });

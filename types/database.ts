@@ -109,6 +109,8 @@ export interface Database {
           application_status: string | null
           analyzed_at: string | null
           history: Json | null
+          form: Json | null
+          fecha_form: string | null
           created_at: string
           updated_at: string
         }
@@ -134,6 +136,8 @@ export interface Database {
           application_status?: string | null
           analyzed_at?: string | null
           history?: Json | null
+          form?: Json | null
+          fecha_form?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -158,6 +162,8 @@ export interface Database {
           application_status?: string | null
           analyzed_at?: string | null
           history?: Json | null
+          form?: Json | null
+          fecha_form?: string | null
           created_at?: string
           updated_at?: string
         }

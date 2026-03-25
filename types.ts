@@ -31,6 +31,10 @@ export interface HistoryEntry {
   };
 }
 
+export interface FundFormSubmission {
+  [field: string]: unknown;
+}
+
 export interface Fund {
   nombre_fondo: string;
   gestor_activos: string;
@@ -46,6 +50,8 @@ export interface Fund {
   analisis_aplicacion?: ApplicationAnalysis; // Optional field to store analysis
   applicationStatus?: string; // Status of the application (PENDIENTE, CONTACTED, etc.)
   history?: HistoryEntry[]; // History of communications and interactions
+  form?: FundFormSubmission[]; // Contact form submissions extracted from the source
+  fecha_form?: string; // Date when the contact form was submitted
   analyzed_at?: string; // Timestamp of when the fund was analyzed
   updated_at?: string; // Timestamp of last update
   created_at?: string; // Timestamp of when the fund was created
