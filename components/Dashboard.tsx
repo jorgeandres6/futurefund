@@ -4,7 +4,6 @@ import { Fund } from '../types';
 import FundDetailModal from './FundDetailModal';
 import DownloadIcon from './icons/DownloadIcon';
 import { formatImpactScore, normalizeImpactScore } from '../utils/impactScore';
-import { getFundNamesWithEmails } from '../services/supabaseService';
 
 interface DashboardProps {
   funds: Fund[];
@@ -25,10 +24,78 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [onlyWithEmails, setOnlyWithEmails] = useState(false);
   const [onlyWithForm, setOnlyWithForm] = useState(false);
-  const [fundNamesWithEmails, setFundNamesWithEmails] = useState<Set<string>>(new Set());
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
   const typeFilterRef = useRef<HTMLDivElement | null>(null);
   const statusFilterRef = useRef<HTMLDivElement | null>(null);
+
+  const hasEmailHistoryData = (fund: Fund): boolean => {
+    const emailIndicatorRegex = /(email|e-mail|correo|sent|received|enviado|recibido)/i;
+    const emailTypeKeys = ['type', 'tipo', 'TIPO'];
+
+    const walk = (node: unknown, parentKey = ''): boolean => {
+      if (node == null) return false;
+
+      if (typeof node === 'string') {
+        const trimmed = node.trim();
+        if (!trimmed) return false;
+
+        const isJsonLike =
+          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']'));
+
+        if (isJsonLike) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return walk(parsed, parentKey);
+          } catch {
+            return false;
+          }
+        }
+
+        const normalizedKey = parentKey.toLowerCase();
+        if (
+          normalizedKey === 'type' ||
+          normalizedKey === 'tipo' ||
+          normalizedKey === 'description' ||
+          normalizedKey === 'descripcion'
+        ) {
+          return emailIndicatorRegex.test(trimmed);
+        }
+
+        return false;
+      }
+
+      if (Array.isArray(node)) {
+        return node.some((entry) => walk(entry, parentKey));
+      }
+
+      if (typeof node === 'object') {
+        const record = node as Record<string, unknown>;
+
+        if (emailTypeKeys.some((key) => typeof record[key] === 'string' && emailIndicatorRegex.test(String(record[key])))) {
+          return true;
+        }
+
+        if (typeof record.email_type === 'string') {
+          return true;
+        }
+
+        const hasSender = ['EMISOR', 'emisor', 'from', 'from_email'].some((key) => typeof record[key] === 'string' && String(record[key]).trim());
+        const hasRecipient = ['RECEPTOR', 'receptor', 'to', 'to_email', 'destinatario'].some((key) => typeof record[key] === 'string' && String(record[key]).trim());
+        const hasEmailBody = ['CONTENIDO', 'contenido', 'body', 'email_body', 'body_html', 'subject', 'asunto'].some((key) => record[key] != null);
+
+        if ((hasSender || hasRecipient) && hasEmailBody) {
+          return true;
+        }
+
+        return Object.entries(record).some(([key, value]) => walk(value, key));
+      }
+
+      return false;
+    };
+
+    return walk(fund.history as unknown);
+  };
 
   const hasFormData = (fund: Fund): boolean => {
     const formData = fund.form as unknown;
@@ -93,6 +160,14 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     return Array.from(new Set(funds.map(getApplicationStatusValue))).sort((a, b) => a.localeCompare(b));
   }, [funds]);
 
+  const emailFundsCount = useMemo(() => {
+    return funds.filter((fund) => hasEmailHistoryData(fund)).length;
+  }, [funds]);
+
+  const formFundsCount = useMemo(() => {
+    return funds.filter((fund) => hasFormData(fund)).length;
+  }, [funds]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (typeFilterRef.current && !typeFilterRef.current.contains(event.target as Node)) {
@@ -107,23 +182,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const loadEmailFilterData = async () => {
-      const namesWithEmails = await getFundNamesWithEmails(userId);
-      if (!isCancelled) {
-        setFundNamesWithEmails(namesWithEmails);
-      }
-    };
-
-    loadEmailFilterData();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [userId, funds]);
 
   // Handle column sort
   const handleSort = (column: SortColumn) => {
@@ -151,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     }
 
     if (onlyWithEmails) {
-      result = result.filter((fund) => fundNamesWithEmails.has(fund.nombre_fondo));
+      result = result.filter((fund) => hasEmailHistoryData(fund));
     }
 
     if (onlyWithForm) {
@@ -207,7 +265,6 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
     selectedApplicationStatuses,
     onlyWithEmails,
     onlyWithForm,
-    fundNamesWithEmails,
     sortColumn,
     sortDirection,
   ]);
@@ -386,6 +443,11 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 title="Filtrar fondos con conversaciones de email"
               >
                 Emails
+                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                  onlyWithEmails ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'
+                }`}>
+                  {emailFundsCount}
+                </span>
               </button>
               <button
                 onClick={() => setOnlyWithForm((prev) => !prev)}
@@ -397,6 +459,11 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                 title="Filtrar fondos con datos en formulario"
               >
                 Form
+                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                  onlyWithForm ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-200'
+                }`}>
+                  {formFundsCount}
+                </span>
               </button>
               <div className="relative">
                 <input
