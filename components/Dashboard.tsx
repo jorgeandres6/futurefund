@@ -44,21 +44,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
     const fundKey = getFundKey(fund);
     const nextFavoriteValue = !isFlaggedFund(fund);
 
-    setFlaggedFundKeys((prev) =>
-      prev.includes(fundKey)
-        ? prev.filter((item) => item !== fundKey)
-        : [...prev, fundKey]
-    );
     setPendingFavoriteKeys((prev) => [...prev, fundKey]);
 
     try {
       await onFavoriteToggle(fund, nextFavoriteValue);
-    } catch {
       setFlaggedFundKeys((prev) =>
         nextFavoriteValue
-          ? prev.filter((item) => item !== fundKey)
-          : [...prev, fundKey]
+          ? (prev.includes(fundKey) ? prev : [...prev, fundKey])
+          : prev.filter((item) => item !== fundKey)
       );
+    } catch {
+      // Keep UI unchanged when persistence fails.
     } finally {
       setPendingFavoriteKeys((prev) => prev.filter((item) => item !== fundKey));
     }
