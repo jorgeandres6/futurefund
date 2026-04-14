@@ -25,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [onlyWithEmails, setOnlyWithEmails] = useState(false);
   const [onlyWithForm, setOnlyWithForm] = useState(false);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [flaggedFundKeys, setFlaggedFundKeys] = useState<string[]>([]);
   const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<string[]>([]);
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
@@ -275,6 +276,10 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
       result = result.filter((fund) => hasFormData(fund));
     }
 
+    if (onlyFavorites) {
+      result = result.filter((fund) => fund.favorite === true);
+    }
+
     // Then, sort by selected column
     result.sort((a, b) => {
       let aValue: string | number = '';
@@ -324,6 +329,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
     selectedApplicationStatuses,
     onlyWithEmails,
     onlyWithForm,
+    onlyFavorites,
     sortColumn,
     sortDirection,
   ]);
@@ -528,6 +534,17 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
               >
                 Form
               </button>
+              <button
+                onClick={() => setOnlyFavorites((prev) => !prev)}
+                className={`flex items-center font-medium py-2 px-4 rounded-lg transition-colors duration-300 text-sm border ${
+                  onlyFavorites
+                    ? 'bg-amber-800/60 border-amber-500 text-amber-100'
+                    : 'bg-gray-800/60 border-gray-600 text-gray-200 hover:bg-gray-700/60'
+                }`}
+                title="Filtrar solo fondos favoritos"
+              >
+                Favoritos
+              </button>
               <div className="relative">
                 <input
                   type="text"
@@ -730,7 +747,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }
               {groupedFunds.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                    {searchText || onlyWithEmails || onlyWithForm
+                    {searchText || onlyWithEmails || onlyWithForm || onlyFavorites
                       ? 'No se encontraron fondos con los filtros actuales.'
                       : 'No hay fondos disponibles.'}
                   </td>
