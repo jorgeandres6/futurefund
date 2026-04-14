@@ -95,6 +95,7 @@ export interface Database {
           gestor_activos: string
           ticker_isin: string
           url_fuente: string
+          favorite: boolean | null
           fecha_scrapeo: string
           ods_encontrados: string[]
           keywords_encontradas: string[]
@@ -122,6 +123,7 @@ export interface Database {
           gestor_activos: string
           ticker_isin: string
           url_fuente: string
+          favorite?: boolean | null
           fecha_scrapeo: string
           ods_encontrados: string[]
           keywords_encontradas: string[]
@@ -148,6 +150,7 @@ export interface Database {
           gestor_activos?: string
           ticker_isin?: string
           url_fuente?: string
+          favorite?: boolean | null
           fecha_scrapeo?: string
           ods_encontrados?: string[]
           keywords_encontradas?: string[]

@@ -8,12 +8,13 @@ import { formatImpactScore, normalizeImpactScore } from '../utils/impactScore';
 interface DashboardProps {
   funds: Fund[];
   userId: string;
+  onFavoriteToggle: (fund: Fund, favorite: boolean) => Promise<void>;
 }
 
 type SortColumn = 'nombre' | 'tipo' | 'gestor' | 'estado' | 'impacto' | 'ods' | 'fecha';
 type SortDirection = 'asc' | 'desc';
 
-const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
+const Dashboard: React.FC<DashboardProps> = ({ funds, userId, onFavoriteToggle }) => {
   const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
   const [searchText, setSearchText] = useState('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('nombre');
@@ -24,9 +25,75 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [onlyWithEmails, setOnlyWithEmails] = useState(false);
   const [onlyWithForm, setOnlyWithForm] = useState(false);
+  const [flaggedFundKeys, setFlaggedFundKeys] = useState<string[]>([]);
+  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<string[]>([]);
   const [selectedSubfundByGroup, setSelectedSubfundByGroup] = useState<Record<string, number>>({});
   const typeFilterRef = useRef<HTMLDivElement | null>(null);
   const statusFilterRef = useRef<HTMLDivElement | null>(null);
+
+  const getFundKey = (fund: Fund): string => {
+    return [fund.nombre_fondo, fund.ticker_isin, fund.url_fuente].map((value) => value?.trim() || '').join('::');
+  };
+
+  const isFlaggedFund = (fund: Fund): boolean => flaggedFundKeys.includes(getFundKey(fund));
+
+  const isFavoritePending = (fund: Fund): boolean => pendingFavoriteKeys.includes(getFundKey(fund));
+
+  const toggleFlaggedFund = async (fund: Fund) => {
+    const fundKey = getFundKey(fund);
+    const nextFavoriteValue = !isFlaggedFund(fund);
+
+    setFlaggedFundKeys((prev) =>
+      prev.includes(fundKey)
+        ? prev.filter((item) => item !== fundKey)
+        : [...prev, fundKey]
+    );
+    setPendingFavoriteKeys((prev) => [...prev, fundKey]);
+
+    try {
+      await onFavoriteToggle(fund, nextFavoriteValue);
+    } catch {
+      setFlaggedFundKeys((prev) =>
+        nextFavoriteValue
+          ? prev.filter((item) => item !== fundKey)
+          : [...prev, fundKey]
+      );
+    } finally {
+      setPendingFavoriteKeys((prev) => prev.filter((item) => item !== fundKey));
+    }
+  };
+
+  const renderFlagButton = (fund: Fund) => {
+    const isFlagged = isFlaggedFund(fund);
+    const isPending = isFavoritePending(fund);
+
+    return (
+      <button
+        type="button"
+        onClick={async (event) => {
+          event.stopPropagation();
+          if (isPending) return;
+          await toggleFlaggedFund(fund);
+        }}
+        disabled={isPending}
+        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          isFlagged
+            ? 'border-amber-400 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30'
+            : 'border-gray-600 bg-gray-800/80 text-gray-400 hover:border-amber-500/60 hover:text-amber-200'
+        } ${isPending ? 'cursor-wait opacity-60' : ''}`}
+        title={isFlagged ? 'Quitar destacado' : 'Marcar como destacado'}
+        aria-label={isFlagged ? `Quitar destacado de ${fund.nombre_fondo}` : `Marcar ${fund.nombre_fondo} como destacado`}
+      >
+        <svg className="h-4.5 w-4.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M4 2.25A1.25 1.25 0 0 1 5.25 1h5.5A1.25 1.25 0 0 1 12 2.25v11.073a.75.75 0 0 1-1.18.614L8 11.924l-2.82 2.013A.75.75 0 0 1 4 13.323V2.25Z" />
+        </svg>
+      </button>
+    );
+  };
+
+  useEffect(() => {
+    setFlaggedFundKeys(funds.filter((fund) => fund.favorite === true).map(getFundKey));
+  }, [funds]);
 
   const hasEmailHistoryData = (fund: Fund): boolean => {
     const emailIndicatorRegex = /(email|e-mail|correo|sent|received|enviado|recibido)/i;
@@ -321,6 +388,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   // Export to CSV function
   const exportToCSV = () => {
     const header = [
+      'Destacado',
       'Nombre del Fondo',
       'Fecha de Actualización',
       'Gestor de Activos',
@@ -340,6 +408,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
 
     const rows = filteredAndSortedFunds.map(fund => {
       const values = [
+        `"${isFlaggedFund(fund) ? 'SI' : 'NO'}"`,
         `"${fund.nombre_fondo.replace(/"/g, '""')}"`,
         `"${fund.updated_at ? new Date(fund.updated_at).toLocaleDateString('es-ES') : new Date(fund.fecha_scrapeo).toLocaleDateString('es-ES')}"`,
         `"${fund.gestor_activos.replace(/"/g, '""')}"`,
@@ -376,11 +445,13 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
   // Calculate statistics
   const stats = useMemo(() => {
     const totalFunds = funds.length;
+    const highlightedFunds = funds.filter((fund) => isFlaggedFund(fund)).length;
 
     return {
-      totalFunds
+      totalFunds,
+      highlightedFunds,
     };
-  }, [funds]);
+  }, [funds, flaggedFundKeys]);
 
   if (funds.length === 0) {
     return null;
@@ -398,7 +469,7 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-6 mb-10">
+      <div className="grid grid-cols-1 gap-6 mb-10 xl:grid-cols-2">
         {/* Stat Card 1 */}
         <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 p-6 rounded-xl shadow-lg relative overflow-hidden group hover:border-blue-500/50 transition-all">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -409,6 +480,16 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
           <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">Numero de fondos encontrados</p>
           <p className="text-4xl font-extrabold text-white mt-2">{stats.totalFunds}</p>
           <p className="text-xs text-blue-300 mt-2">Fuentes identificadas</p>
+        </div>
+        <div className="bg-gradient-to-br from-amber-900/40 to-gray-900 border border-amber-700/40 p-6 rounded-xl shadow-lg relative overflow-hidden group hover:border-amber-500/60 transition-all">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-amber-300" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M6 2a1 1 0 00-1 1v15l5-3.333L15 18V3a1 1 0 00-1-1H6z" />
+            </svg>
+          </div>
+          <p className="text-amber-100/80 text-sm font-medium uppercase tracking-wider">Fondos destacados</p>
+          <p className="text-4xl font-extrabold text-white mt-2">{stats.highlightedFunds}</p>
+          <p className="text-xs text-amber-200 mt-2">Marcados para seguimiento prioritario</p>
         </div>
       </div>
 
@@ -662,35 +743,54 @@ const Dashboard: React.FC<DashboardProps> = ({ funds, userId }) => {
                   return (
                   <tr 
                     key={`${group.key}-${index}`} 
-                    className="hover:bg-gray-700/30 transition-colors cursor-pointer"
+                    className={`cursor-pointer transition-colors ${
+                      isFlaggedFund(fund)
+                        ? 'bg-amber-500/10 hover:bg-amber-500/15'
+                        : 'hover:bg-gray-700/30'
+                    }`}
                     onClick={() => setSelectedFund(fund)}
                   >
                     <td className="px-6 py-4 text-gray-200 font-medium">
-                      {group.funds.length > 1 ? (
-                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                          <select
-                            value={selectedSubfundIndex}
-                            onChange={(e) =>
-                              setSelectedSubfundByGroup((prev) => ({
-                                ...prev,
-                                [group.key]: Number(e.target.value),
-                              }))
-                            }
-                            className="bg-gray-700 text-gray-200 border border-gray-600 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
-                          >
-                            {group.funds.map((subfund, subIndex) => (
-                              <option key={`${subfund.ticker_isin}-${subIndex}`} value={subIndex}>
-                                {subfund.nombre_fondo} {subfund.ticker_isin ? `(${subfund.ticker_isin})` : ''}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-gray-400">
-                            {group.funds.length} subcategorías agrupadas por la misma URL
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="whitespace-nowrap">{fund.nombre_fondo}</span>
-                      )}
+                      <div className="flex items-start gap-3">
+                        {renderFlagButton(fund)}
+                        {group.funds.length > 1 ? (
+                          <div className="space-y-2 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={selectedSubfundIndex}
+                              onChange={(e) =>
+                                setSelectedSubfundByGroup((prev) => ({
+                                  ...prev,
+                                  [group.key]: Number(e.target.value),
+                                }))
+                              }
+                              className="bg-gray-700 text-gray-200 border border-gray-600 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
+                            >
+                              {group.funds.map((subfund, subIndex) => (
+                                <option key={`${subfund.ticker_isin}-${subIndex}`} value={subIndex}>
+                                  {subfund.nombre_fondo} {subfund.ticker_isin ? `(${subfund.ticker_isin})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-400">
+                              {group.funds.length} subcategorías agrupadas por la misma URL
+                            </p>
+                            {isFlaggedFund(fund) && (
+                              <p className="text-xs font-medium uppercase tracking-wide text-amber-200">
+                                Seguimiento prioritario
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="min-w-0">
+                            <span className="whitespace-nowrap">{fund.nombre_fondo}</span>
+                            {isFlaggedFund(fund) && (
+                              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-amber-200">
+                                Seguimiento prioritario
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
                       {getFundTypeValue(fund)}

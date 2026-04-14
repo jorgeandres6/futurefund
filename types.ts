@@ -40,6 +40,7 @@ export interface Fund {
   gestor_activos: string;
   ticker_isin: string;
   url_fuente: string;
+  favorite?: boolean;
   fecha_scrapeo: string;
   alineacion_detectada: {
     ods_encontrados: string[];

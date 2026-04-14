@@ -10,7 +10,7 @@ import {
   generateCompanyProfileSummary
 } from './services/geminiService';
 import { supabase } from './services/supabaseClient';
-import { saveProfile, loadProfile, loadFunds } from './services/supabaseService';
+import { saveProfile, loadProfile, loadFunds, updateFundFavorite } from './services/supabaseService';
 import SearchBar from './components/SearchBar';
 import Dashboard from './components/Dashboard';
 import AuthScreen from './components/AuthScreen';
@@ -217,6 +217,24 @@ const App: React.FC = () => {
       )
     );
   }, []);
+
+  const handleFundFavoriteUpdate = useCallback(async (fundToUpdate: Fund, favorite: boolean) => {
+    if (!userId) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    await updateFundFavorite(userId, fundToUpdate, favorite);
+
+    setFunds((currentFunds) =>
+      currentFunds.map((fund) =>
+        fund.nombre_fondo === fundToUpdate.nombre_fondo &&
+        fund.ticker_isin === fundToUpdate.ticker_isin &&
+        fund.url_fuente === fundToUpdate.url_fuente
+          ? { ...fund, favorite }
+          : fund
+      )
+    );
+  }, [userId]);
 
   const handleAnalysisComplete = useCallback((fundName: string, analysis: ApplicationAnalysis) => {
     // Update local state with the analysis data
@@ -602,7 +620,7 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && (
              <div className="flex flex-col items-center w-full animate-fade-in">
                 {funds.length > 0 ? (
-                    <Dashboard funds={funds} userId={userId || ''} />
+                    <Dashboard funds={funds} userId={userId || ''} onFavoriteToggle={handleFundFavoriteUpdate} />
                 ) : (
                     <div className="text-center mt-12 p-12 bg-gray-800/20 rounded-2xl border border-gray-700/30 max-w-2xl mx-auto flex flex-col items-center">
                         <div className="p-4 bg-gray-800 rounded-full mb-6">

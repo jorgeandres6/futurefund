@@ -188,6 +188,7 @@ export const loadFunds = async (userId: string): Promise<Fund[]> => {
       gestor_activos: item.gestor_activos,
       ticker_isin: item.ticker_isin,
       url_fuente: item.url_fuente,
+      favorite: item.favorite === true,
       fecha_scrapeo: item.fecha_scrapeo,
       alineacion_detectada: {
         ods_encontrados: item.ods_encontrados,
@@ -231,6 +232,34 @@ export const updateFundStatus = async (userId: string, fundName: string, status:
     fundName,
     status,
   });
+};
+
+/**
+ * Update the only writable field in funds: favorite.
+ */
+export const updateFundFavorite = async (
+  userId: string,
+  fund: Pick<Fund, 'nombre_fondo' | 'ticker_isin' | 'url_fuente'>,
+  favorite: boolean
+) => {
+  try {
+    const payload: FundUpdate = {
+      favorite,
+    };
+
+    const { error } = await supabase
+      .from<'funds', FundsTable>('funds')
+      .update(payload)
+      .eq('user_id', userId)
+      .eq('nombre_fondo', fund.nombre_fondo)
+      .eq('ticker_isin', fund.ticker_isin)
+      .eq('url_fuente', fund.url_fuente);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error updating fund favorite:', error);
+    throw error;
+  }
 };
 
 /**
