@@ -128,21 +128,38 @@ export const saveFunds = async (userId: string, funds: Fund[]) => {
 
 /**
  * Load funds from Supabase
+ * Handles pagination to fetch all funds (Supabase limits responses to 1000 by default)
  */
 export const loadFunds = async (userId: string): Promise<Fund[]> => {
   try {
-    const { data, error } = await supabase
-      .from<'funds', FundsTable>('funds')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const BATCH_SIZE = 1000;
+    let allFunds: FundRow[] = [];
+    let offset = 0;
+    let hasMore = true;
 
-    if (error) throw error;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from<'funds', FundsTable>('funds')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + BATCH_SIZE - 1);
 
-    if (!data) return [];
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        allFunds = allFunds.concat(data);
+        offset += BATCH_SIZE;
+        hasMore = data.length === BATCH_SIZE;
+      }
+    }
+
+    if (!allFunds || allFunds.length === 0) return [];
 
     // Convert database format to Fund
-    const funds: Fund[] = data.map((item: FundRow) => {
+    const funds: Fund[] = allFunds.map((item: FundRow) => {
       const hasApplicationData =
         Boolean(item.es_elegible) ||
         (Array.isArray(item.resumen_requisitos) && item.resumen_requisitos.length > 0) ||
